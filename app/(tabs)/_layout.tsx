@@ -4,6 +4,7 @@ import { Tabs } from "expo-router";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getEnveloppesByMois, getMoisEnCours, getParametresMap } from "@/database/queries";
 import { buildBudgetAlerts, countActiveBudgetAlerts } from "@/services/budget-alerts";
@@ -49,6 +50,7 @@ function AddTabButton({
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
   const [homeAlertCount, setHomeAlertCount] = useState(0);
 
   const loadHomeAlertCount = useCallback(async () => {
@@ -88,7 +90,13 @@ export default function TabsLayout() {
         tabBarShowLabel: false,
         tabBarActiveTintColor: COLORS.primaryDark,
         tabBarInactiveTintColor: COLORS.muted,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: 72 + insets.bottom,
+            paddingBottom: Math.max(insets.bottom, 12),
+          },
+        ],
         tabBarItemStyle: styles.tabBarItem,
         tabBarHideOnKeyboard: true,
         sceneStyle: styles.scene,

@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -114,6 +114,7 @@ function buildCategorieResume(depenses: Depense[]): CategorieResume[] {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [currentMonth, setCurrentMonth] = useState<Mois | null>(null);
   const [depenses, setDepenses] = useState<Depense[]>([]);
   const [enveloppes, setEnveloppes] = useState<EnveloppeAvecSolde[]>([]);
@@ -314,16 +315,31 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         ) : (
-          <MonthSummaryCard
-            categories={categorySummary.map((item) => ({
-              color: item.color,
-              label: item.nom,
-              montant: item.montant,
-            }))}
-            depense={totalDepense}
-            restant={currentMonth.salaire - totalDepense}
-            salaire={currentMonth.salaire}
-          />
+          <>
+            <MonthSummaryCard
+              categories={categorySummary.map((item) => ({
+                color: item.color,
+                label: item.nom,
+                montant: item.montant,
+              }))}
+              depense={totalDepense}
+              restant={currentMonth.salaire - totalDepense}
+              salaire={currentMonth.salaire}
+            />
+
+            <Pressable
+              onPress={() => {
+                void Haptics.selectionAsync();
+                router.push("/depense");
+              }}
+              style={({ pressed }) => [
+                styles.quickActionButton,
+                pressed ? styles.salaryButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.quickActionButtonText}>Ajouter une depense</Text>
+            </Pressable>
+          </>
         )}
 
         <View style={styles.sectionHeader}>
@@ -502,6 +518,20 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   salaryButtonText: {
+    color: COLORS.card,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  quickActionButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    justifyContent: "center",
+    marginBottom: 24,
+    minHeight: 52,
+    paddingHorizontal: 18,
+  },
+  quickActionButtonText: {
     color: COLORS.card,
     fontSize: 15,
     fontWeight: "700",

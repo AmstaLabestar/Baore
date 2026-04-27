@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import * as Haptics from "expo-haptics";
@@ -132,6 +133,7 @@ function buildEnveloppesFromParametres(
 }
 
 export default function DepenseScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
   const descriptionInputRef = useRef<TextInput>(null);
   const amountInputRef = useRef<TextInput>(null);
   const successScale = useRef(new Animated.Value(0.6)).current;
@@ -153,6 +155,21 @@ export default function DepenseScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const parsedAmount = useMemo(() => parseAmountInput(amountInput), [amountInput]);
+  const saveHint = useMemo(() => {
+    if (!description.trim()) {
+      return "Ajoute d'abord une description.";
+    }
+
+    if (parsedAmount <= 0) {
+      return "Entre ensuite le montant de la depense.";
+    }
+
+    if (!selectedEnveloppe) {
+      return "Choisis l'enveloppe a debiter.";
+    }
+
+    return "Appuie sur le bouton pour valider et enregistrer la depense.";
+  }, [description, parsedAmount, selectedEnveloppe]);
   const canSave =
     description.trim().length > 0 &&
     parsedAmount > 0 &&
@@ -397,7 +414,10 @@ export default function DepenseScreen() {
         style={styles.keyboardContainer}
       >
         <ScrollView
-          contentContainerStyle={styles.contentContainer}
+          contentContainerStyle={[
+            styles.contentContainer,
+            { paddingBottom: tabBarHeight + 128 },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -405,16 +425,21 @@ export default function DepenseScreen() {
 
           {!currentMonth || currentMonth.salaire <= 0 ? (
             <View style={styles.salaryCard}>
-              <Text style={styles.sectionTitle}>Aucun mois en cours</Text>
+              <Text style={styles.stepBadge}>Etape 1</Text>
+              <Text style={styles.sectionTitle}>Definir le budget du mois</Text>
               <Text style={styles.sectionSubtitle}>
-                Saisis d'abord ton salaire du mois pour pouvoir enregistrer des depenses.
+                Saisis ton salaire puis valide. Le formulaire pour enregistrer une depense apparaitra juste apres.
               </Text>
 
               <TextInput
                 keyboardType="numeric"
                 onChangeText={setSalaryInput}
+                onSubmitEditing={() => {
+                  void handleCreateCurrentMonth();
+                }}
                 placeholder="Ex: 250000"
                 placeholderTextColor={COLORS.muted}
+                returnKeyType="done"
                 style={styles.salaryInput}
                 value={salaryInput}
               />
@@ -431,13 +456,17 @@ export default function DepenseScreen() {
                 ]}
               >
                 <Text style={styles.primaryButtonText}>
-                  {isCreatingMonth ? "Creation..." : "Definir mon salaire"}
+                  {isCreatingMonth ? "Validation..." : "Valider le salaire"}
                 </Text>
               </Pressable>
+
+              <Text style={styles.helperText}>Ensuite tu pourras enregistrer tes depenses ici.</Text>
             </View>
           ) : (
             <>
               <View style={styles.sectionCard}>
+                <Text style={styles.stepBadge}>Etape 2</Text>
+                <Text style={styles.sectionTitle}>Enregistrer une depense</Text>
                 <Text style={styles.fieldLabel}>Description</Text>
                 <TextInput
                   autoCapitalize="sentences"
@@ -476,16 +505,19 @@ export default function DepenseScreen() {
               <View style={styles.sectionCard}>
                 <Text style={styles.fieldLabel}>Montant</Text>
 
-                <Pressable onPress={() => amountInputRef.current?.focus()} style={styles.amountWrap}>
+                <View style={styles.amountWrap}>
+                  <Text style={styles.amountPreview}>{formatMontant(parsedAmount || 0)}</Text>
                   <TextInput
                     keyboardType="number-pad"
                     onChangeText={(value) => setAmountInput(value.replace(/[^\d]/g, ""))}
+                    placeholder="Entre le montant"
+                    placeholderTextColor={COLORS.muted}
                     ref={amountInputRef}
-                    style={styles.amountInput}
+                    returnKeyType="done"
+                    style={styles.amountField}
                     value={amountInput}
                   />
-                  <Text style={styles.amountPreview}>{formatMontant(parsedAmount || 0)}</Text>
-                </Pressable>
+                </View>
               </View>
 
               <View style={styles.sectionCard}>
@@ -564,27 +596,34 @@ export default function DepenseScreen() {
                 </View>
               </View>
 
-              <Animated.View style={{ transform: [{ scale: saveButtonScale }] }}>
-                <Pressable
-                  disabled={!canSave}
-                  onPress={() => {
-                    void handleSave();
-                  }}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    styles.saveButton,
-                    pressed && canSave ? styles.primaryButtonPressed : null,
-                    !canSave ? styles.primaryButtonDisabled : null,
-                  ]}
-                >
-                  <Text style={styles.primaryButtonText}>
-                    {isSaving ? "Enregistrement..." : "Enregistrer"}
-                  </Text>
-                </Pressable>
-              </Animated.View>
             </>
           )}
         </ScrollView>
+
+        {currentMonth && currentMonth.salaire > 0 ? (
+          <View style={[styles.stickyActionWrap, { bottom: tabBarHeight }]}>
+            <Text style={[styles.saveHint, canSave ? styles.saveHintReady : null]}>{saveHint}</Text>
+
+            <Animated.View style={{ transform: [{ scale: saveButtonScale }] }}>
+              <Pressable
+                disabled={!canSave}
+                onPress={() => {
+                  void handleSave();
+                }}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  styles.saveButton,
+                  pressed && canSave ? styles.primaryButtonPressed : null,
+                  !canSave ? styles.primaryButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {isSaving ? "Enregistrement..." : "Valider et enregistrer la depense"}
+                </Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        ) : null}
 
         {showSuccess ? (
           <Animated.View
@@ -608,11 +647,18 @@ export default function DepenseScreen() {
 }
 
 const styles = StyleSheet.create({
-  amountInput: {
-    height: 0,
-    opacity: 0,
-    position: "absolute",
-    width: 0,
+  amountField: {
+    backgroundColor: COLORS.softPrimary,
+    borderColor: "#c7d2fe",
+    borderRadius: 14,
+    borderWidth: 1,
+    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: "700",
+    marginTop: 14,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    textAlign: "center",
   },
   amountPreview: {
     color: COLORS.text,
@@ -623,7 +669,7 @@ const styles = StyleSheet.create({
   amountWrap: {
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 96,
+    minHeight: 120,
   },
   categoryChip: {
     borderRadius: 999,
@@ -658,7 +704,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 120,
   },
   descriptionInput: {
     borderBottomColor: "#d9dbf3",
@@ -731,6 +776,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 18,
   },
+  helperText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 12,
+  },
   primaryButton: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
@@ -791,7 +842,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   saveButton: {
-    marginTop: 4,
+    marginTop: 6,
+  },
+  saveHint: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  saveHintReady: {
+    color: COLORS.success,
+    fontWeight: "600",
   },
   sectionCard: {
     backgroundColor: COLORS.card,
@@ -819,6 +881,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 10,
   },
+  stepBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: COLORS.softPrimary,
+    borderRadius: 999,
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 10,
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
   successBubble: {
     alignItems: "center",
     backgroundColor: COLORS.card,
@@ -839,6 +913,17 @@ const styles = StyleSheet.create({
     bottom: 140,
     justifyContent: "center",
     left: 0,
+    position: "absolute",
+    right: 0,
+  },
+  stickyActionWrap: {
+    backgroundColor: "rgba(248, 247, 255, 0.98)",
+    borderTopColor: "#e9e7fb",
+    borderTopWidth: 1,
+    left: 0,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     position: "absolute",
     right: 0,
   },
