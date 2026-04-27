@@ -1,7 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+
+import { getEnveloppesByMois, getMoisEnCours, getParametresMap } from "@/database/queries";
+import { buildBudgetAlerts, countActiveBudgetAlerts } from "@/services/budget-alerts";
+import { subscribeToBudgetUpdates } from "@/shared/services/budget-events";
 
 const COLORS = {
   primary: "#4f46e5",
@@ -40,6 +45,38 @@ function AddTabButton({
 }
 
 export default function TabsLayout() {
+  const [homeAlertCount, setHomeAlertCount] = useState(0);
+
+  const loadHomeAlertCount = useCallback(async () => {
+    const currentMonth = await getMoisEnCours();
+
+    if (!currentMonth) {
+      setHomeAlertCount(0);
+      return;
+    }
+
+    const [parametres, enveloppes] = await Promise.all([
+      getParametresMap(),
+      getEnveloppesByMois(currentMonth.id),
+    ]);
+
+    const alerts = buildBudgetAlerts({
+      currentMonth,
+      enveloppes,
+      seuilAlerte: Number.parseFloat(parametres.seuil_alerte) || 10,
+    });
+
+    setHomeAlertCount(countActiveBudgetAlerts(alerts));
+  }, []);
+
+  useEffect(() => {
+    void loadHomeAlertCount();
+
+    return subscribeToBudgetUpdates(() => {
+      void loadHomeAlertCount();
+    });
+  }, [loadHomeAlertCount]);
+
   return (
     <Tabs
       screenOptions={{
@@ -57,6 +94,8 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Accueil",
+          tabBarBadge: homeAlertCount > 0 ? homeAlertCount : undefined,
+          tabBarBadgeStyle: styles.badge,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               color={color}
@@ -149,5 +188,11 @@ const styles = StyleSheet.create({
       height: 8,
     },
     elevation: 8,
+  },
+  badge: {
+    backgroundColor: "#ef4444",
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });

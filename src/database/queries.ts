@@ -1,5 +1,11 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
+import {
+  cancelInactivityReminder,
+  scheduleInactivityReminder,
+  sendEnveloppeAlert,
+} from "@/services/notifications";
+
 import { initializeDatabase } from "./db";
 import { DEFAULT_PARAMETRES } from "./schema";
 
@@ -91,6 +97,12 @@ export interface UpdateParametreInput {
 }
 
 const DEFAULT_PARAMETRE_KEYS = DEFAULT_PARAMETRES.map((item) => item.cle) as ParametreCle[];
+const ENVELOPPE_LABELS: Record<EnveloppeType, string> = {
+  charges: "Charges",
+  epargne: "Epargne",
+  investissement: "Investissement",
+  urgence: "Urgence",
+};
 
 /** Compare une date ISO a une autre pour savoir si elles appartiennent au meme mois civil. */
 function isSameMonthForQuery(isoDate: string, referenceDate: Date): boolean {
@@ -129,6 +141,24 @@ async function requireDepenseById(id: number, db?: SQLiteDatabase): Promise<Depe
   }
 
   return depense;
+}
+
+/** Calcule si une enveloppe vient juste de franchir le seuil d'alerte ou d'etre epuisee. */
+function hasCrossedAlertThreshold(
+  before: EnveloppeAvecSolde | null,
+  after: EnveloppeAvecSolde,
+  seuilAlerte: number
+): boolean {
+  const thresholdRatio = seuilAlerte / 100;
+  const beforeRatio =
+    before && before.montant_initial > 0 ? before.montant_restant / before.montant_initial : 1;
+  const afterRatio = after.montant_initial > 0 ? after.montant_restant / after.montant_initial : 0;
+
+  const crossedIntoDanger = after.montant_restant <= 0 && (!before || before.montant_restant > 0);
+  const crossedIntoWarning =
+    after.montant_restant > 0 && afterRatio <= thresholdRatio && (!before || beforeRatio > thresholdRatio);
+
+  return crossedIntoDanger || crossedIntoWarning;
 }
 
 /** Retourne le mois actuellement ouvert, ou `null` si aucun mois n'est en cours. */
@@ -363,6 +393,7 @@ export async function getEnveloppeByMoisAndType(
 /** Ajoute une depense dans le mois cible et retourne la ligne creee. */
 export async function addDepense(input: CreateDepenseInput): Promise<Depense> {
   const db = await getInitializedDb();
+  const previousEnvelope = await getEnveloppeByMoisAndType(input.moisId, input.enveloppeType);
 
   const result = await db.runAsync(
     `
@@ -378,7 +409,37 @@ export async function addDepense(input: CreateDepenseInput): Promise<Depense> {
     input.heure
   );
 
-  return requireDepenseById(result.lastInsertRowId, db);
+  const depense = await requireDepenseById(result.lastInsertRowId, db);
+
+  try {
+    const [updatedEnvelope, parametres] = await Promise.all([
+      getEnveloppeByMoisAndType(input.moisId, input.enveloppeType),
+      getParametresMap(),
+    ]);
+
+    if (updatedEnvelope) {
+      const seuilAlerte = Number.parseFloat(parametres.seuil_alerte) || 10;
+      const pourcentageRestant =
+        updatedEnvelope.montant_initial > 0
+          ? (updatedEnvelope.montant_restant / updatedEnvelope.montant_initial) * 100
+          : 0;
+
+      if (hasCrossedAlertThreshold(previousEnvelope, updatedEnvelope, seuilAlerte)) {
+        await sendEnveloppeAlert(
+          ENVELOPPE_LABELS[updatedEnvelope.type],
+          updatedEnvelope.montant_restant,
+          pourcentageRestant
+        );
+      }
+    }
+
+    await cancelInactivityReminder();
+    await scheduleInactivityReminder();
+  } catch (error) {
+    console.error("Erreur lors de l'envoi des notifications locales:", error);
+  }
+
+  return depense;
 }
 
 /** Retourne l'historique complet des depenses, de la plus recente a la plus ancienne. */

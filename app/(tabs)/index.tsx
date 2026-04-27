@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 
+import { AlertBanner } from "@/components/AlertBanner";
 import {
   createMoisWithEnveloppes,
   getDepensesByMois,
@@ -27,6 +28,7 @@ import {
   type EnveloppeType,
   type Mois,
 } from "@/database/queries";
+import { buildBudgetAlerts } from "@/services/budget-alerts";
 import { subscribeToBudgetUpdates } from "@/shared/services/budget-events";
 
 const COLORS = {
@@ -89,12 +91,6 @@ interface CategorieResume {
   montant: number;
   nom: string;
   ratio: number;
-}
-
-interface EnveloppeAlert {
-  message: string;
-  severity: "danger" | "warning";
-  type: EnveloppeType;
 }
 
 function formatCurrency(value: number): string {
@@ -166,37 +162,6 @@ function buildCategorieResume(depenses: Depense[]): CategorieResume[] {
       nom,
       ratio: totalDepenses > 0 ? montant / totalDepenses : 0,
     }));
-}
-
-function buildAlerts(enveloppes: EnveloppeAvecSolde[], seuilAlerte: number): EnveloppeAlert[] {
-  const seuil = seuilAlerte / 100;
-
-  return enveloppes.flatMap<EnveloppeAlert>((enveloppe) => {
-    const ratio = enveloppe.montant_initial > 0 ? enveloppe.montant_restant / enveloppe.montant_initial : 0;
-    const config = ENVELOPE_CONFIG[enveloppe.type];
-
-    if (enveloppe.montant_restant <= 0) {
-      return [
-        {
-          message: `${config.label} est epuisee.`,
-          severity: "danger",
-          type: enveloppe.type,
-        },
-      ];
-    }
-
-    if (ratio <= seuil) {
-      return [
-        {
-          message: `${config.label} est presque vide (${Math.round(ratio * 100)}% restant).`,
-          severity: "warning",
-          type: enveloppe.type,
-        },
-      ];
-    }
-
-    return [];
-  });
 }
 
 function AnimatedProgressBar({
@@ -300,7 +265,15 @@ export default function HomeScreen() {
     () => Number.parseFloat(parametres?.seuil_alerte ?? "10") || 10,
     [parametres]
   );
-  const alerts = useMemo(() => buildAlerts(enveloppes, seuilAlerte), [enveloppes, seuilAlerte]);
+  const alerts = useMemo(
+    () =>
+      buildBudgetAlerts({
+        currentMonth,
+        enveloppes,
+        seuilAlerte,
+      }),
+    [currentMonth, enveloppes, seuilAlerte]
+  );
   const globalProgress = useMemo(() => {
     if (!currentMonth || currentMonth.salaire <= 0) {
       return 0;
@@ -441,27 +414,12 @@ export default function HomeScreen() {
       {alerts.length > 0 ? (
         <View style={styles.alertsSection}>
           {alerts.map((alert) => (
-            <View
-              key={`${alert.type}-${alert.severity}`}
-              style={[
-                styles.alertBanner,
-                alert.severity === "danger" ? styles.alertDanger : styles.alertWarning,
-              ]}
-            >
-              <Ionicons
-                color={alert.severity === "danger" ? COLORS.danger : COLORS.warning}
-                name={alert.severity === "danger" ? "alert-circle" : "warning"}
-                size={18}
-              />
-              <Text
-                style={[
-                  styles.alertText,
-                  { color: alert.severity === "danger" ? COLORS.danger : COLORS.warning },
-                ]}
-              >
-                {alert.message}
-              </Text>
-            </View>
+            <AlertBanner
+              icon={alert.icon}
+              key={alert.id}
+              message={alert.message}
+              tone={alert.tone}
+            />
           ))}
         </View>
       ) : null}
@@ -573,25 +531,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  alertBanner: {
-    alignItems: "center",
-    borderRadius: 16,
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  alertDanger: {
-    backgroundColor: COLORS.softDanger,
-  },
-  alertText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  alertWarning: {
-    backgroundColor: COLORS.softWarning,
-  },
   alertsSection: {
     gap: 10,
     marginBottom: 20,

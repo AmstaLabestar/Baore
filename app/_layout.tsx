@@ -5,12 +5,27 @@ import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { initializeDatabase } from "@/database/db";
+import {
+  requestPermissions,
+  scheduleInactivityReminder,
+  scheduleMonthlyReminder,
+} from "@/services/notifications";
 
 export default function RootLayout() {
   useEffect(() => {
-    initializeDatabase().catch((error) => {
-      console.error("Erreur d'initialisation SQLite:", error);
-    });
+    void (async () => {
+      try {
+        await initializeDatabase();
+
+        const hasPermission = await requestPermissions();
+
+        if (hasPermission) {
+          await Promise.all([scheduleMonthlyReminder(), scheduleInactivityReminder()]);
+        }
+      } catch (error) {
+        console.error("Erreur d'initialisation de l'application:", error);
+      }
+    })();
   }, []);
 
   return (
