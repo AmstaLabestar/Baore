@@ -1,1 +1,13 @@
-Budget Flow est une app mobile Android 100% offline qui t'aide à savoir exactement où part ton argent chaque mois. Tu saisis ton salaire, l'app le divise automatiquement en 4 enveloppes (Charges, Épargne, Investissement, Urgence), et tu notes chaque dépense — même 100 FCFA d'arachide. Alertes automatiques quand une enveloppe est presque vide. Historique complet archivé mois par mois. Toutes les données restent sur ton téléphone.
+# Budget Flow
+
+Budget Flow est une application mobile Android de gestion budgetaire personnelle, 100% offline.
+
+Elle permet de :
+- saisir le salaire du debut de mois
+- repartir automatiquement ce salaire en 4 enveloppes : Charges, Epargne, Investissement et Urgence
+- enregistrer chaque depense, meme les plus petites
+- recevoir une alerte quand une enveloppe devient presque vide
+- consulter l'historique complet des depenses mois par mois
+- cloturer un mois et l'archiver localement
+
+Toutes les donnees restent stockees sur le telephone via SQLite.
