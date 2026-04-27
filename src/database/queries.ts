@@ -68,6 +68,13 @@ export interface CreateMoisWithEnveloppesInput extends CreateMoisInput {
   enveloppes: CreateEnveloppeInput[];
 }
 
+export interface InitializeMoisBudgetInput {
+  enveloppes: CreateEnveloppeInput[];
+  label?: string;
+  moisId: number;
+  salaire: number;
+}
+
 export interface CreateDepenseInput {
   moisId: number;
   enveloppeType: EnveloppeType;
@@ -84,6 +91,16 @@ export interface UpdateParametreInput {
 }
 
 const DEFAULT_PARAMETRE_KEYS = DEFAULT_PARAMETRES.map((item) => item.cle) as ParametreCle[];
+
+/** Compare une date ISO a une autre pour savoir si elles appartiennent au meme mois civil. */
+function isSameMonthForQuery(isoDate: string, referenceDate: Date): boolean {
+  const parsedDate = new Date(isoDate);
+
+  return (
+    parsedDate.getFullYear() === referenceDate.getFullYear() &&
+    parsedDate.getMonth() === referenceDate.getMonth()
+  );
+}
 
 /** Retourne une instance de base deja initialisee avant d'executer une requete. */
 async function getInitializedDb(): Promise<SQLiteDatabase> {
@@ -147,6 +164,13 @@ export async function getMois(): Promise<Mois[]> {
       ORDER BY date_debut DESC, id DESC;
     `
   );
+}
+
+/** Retourne le mois associe a une date de reference, ou `null` si aucun mois n'a encore ete cree. */
+export async function getMoisPourDate(referenceDate: Date = new Date()): Promise<Mois | null> {
+  const mois = await getMois();
+
+  return mois.find((item) => isSameMonthForQuery(item.date_debut, referenceDate)) ?? null;
 }
 
 /** Cree un nouveau mois budgetaire sans encore alimenter ses enveloppes. */
@@ -233,6 +257,48 @@ export async function createMoisWithEnveloppes(
 
   const mois = await requireMoisById(createdMoisId, db);
   const enveloppes = await getEnveloppesByMois(createdMoisId);
+
+  return { mois, enveloppes };
+}
+
+/** Initialise ou reinitialise le budget d'un mois deja cree en y associant salaire et enveloppes. */
+export async function initializeMoisBudget(
+  input: InitializeMoisBudgetInput
+): Promise<{ mois: Mois; enveloppes: Enveloppe[] }> {
+  const db = await getInitializedDb();
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `
+        UPDATE mois
+        SET salaire = ?,
+            label = COALESCE(?, label),
+            statut = 'en_cours'
+        WHERE id = ?;
+      `,
+      input.salaire,
+      input.label ?? null,
+      input.moisId
+    );
+
+    await db.runAsync("DELETE FROM enveloppes WHERE mois_id = ?;", input.moisId);
+
+    for (const enveloppe of input.enveloppes) {
+      await db.runAsync(
+        `
+          INSERT INTO enveloppes (mois_id, type, montant_initial, pourcentage)
+          VALUES (?, ?, ?, ?);
+        `,
+        input.moisId,
+        enveloppe.type,
+        enveloppe.montantInitial,
+        enveloppe.pourcentage
+      );
+    }
+  });
+
+  const mois = await requireMoisById(input.moisId, db);
+  const enveloppes = await getEnveloppesByMois(input.moisId);
 
   return { mois, enveloppes };
 }
@@ -326,6 +392,28 @@ export async function getDepenses(): Promise<Depense[]> {
       ORDER BY date DESC, heure DESC, id DESC;
     `
   );
+}
+
+/** Retourne les dernieres descriptions uniques les plus recentes pour accelerer la saisie. */
+export async function getRecentDescriptions(limit: number = 8): Promise<string[]> {
+  const depenses = await getDepenses();
+  const descriptions = new Set<string>();
+
+  for (const depense of depenses) {
+    const normalizedDescription = depense.description.trim();
+
+    if (!normalizedDescription || descriptions.has(normalizedDescription)) {
+      continue;
+    }
+
+    descriptions.add(normalizedDescription);
+
+    if (descriptions.size >= limit) {
+      break;
+    }
+  }
+
+  return [...descriptions];
 }
 
 /** Retourne toutes les depenses d'un mois donne, triees des plus recentes aux plus anciennes. */
