@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { useCallback, useEffect, useState } from "react";
@@ -35,7 +36,10 @@ function AddTabButton({
       accessibilityRole="button"
       accessibilityState={accessibilityState}
       onLongPress={onLongPress}
-      onPress={onPress}
+      onPress={(event) => {
+        void Haptics.selectionAsync();
+        onPress?.(event);
+      }}
       style={styles.addButtonWrapper}
       testID={testID}
     >

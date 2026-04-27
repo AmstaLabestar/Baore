@@ -1,10 +1,14 @@
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   SectionList,
@@ -13,8 +17,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
 
+import { DepenseItem } from "@/components/DepenseItem";
+import { EmptyState } from "@/components/EmptyState";
+import { LoadingScreen } from "@/components/LoadingScreen";
+import { MonthSummaryCard } from "@/components/MonthSummaryCard";
 import {
   deleteDepense,
   getDepenses,
@@ -24,19 +31,19 @@ import {
   type Mois,
 } from "@/database/queries";
 import { notifyBudgetUpdated, subscribeToBudgetUpdates } from "@/shared/services/budget-events";
+import { formatDate, formatMontant, formatMois, getPourcentage } from "@/utils/formatters";
 
 const COLORS = {
+  background: "#f8f7ff",
+  border: "#e5e7eb",
+  card: "#ffffff",
+  muted: "#6b7280",
   primary: "#4f46e5",
   primaryDark: "#1a1a2e",
-  background: "#f8f7ff",
-  card: "#ffffff",
-  text: "#1a1a2e",
-  muted: "#6b7280",
-  success: "#10b981",
-  danger: "#ef4444",
-  border: "#e5e7eb",
   softPrimary: "#eef2ff",
   softSuccess: "#dcfce7",
+  success: "#10b981",
+  text: "#1a1a2e",
 };
 
 const ENVELOPE_FILTERS: Array<{ key: "tous" | EnveloppeType; label: string }> = [
@@ -80,7 +87,6 @@ interface CategorySummaryItem {
   color: string;
   label: string;
   montant: number;
-  ratio: number;
 }
 
 interface MonthSectionData {
@@ -88,12 +94,6 @@ interface MonthSectionData {
   isCurrent: boolean;
   mois: Mois;
   total: number;
-}
-
-function formatCurrency(value: number): string {
-  return `${new Intl.NumberFormat("fr-FR", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(value))} FCFA`;
 }
 
 function normalizeText(value: string): string {
@@ -122,39 +122,6 @@ function getCategoryColor(category: string): string {
   return CATEGORY_BADGE_COLORS[category] ?? "#6b7280";
 }
 
-function getDateLabel(isoDate: string): string {
-  const date = new Date(isoDate);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-
-  const sameDay =
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear();
-
-  if (sameDay) {
-    return "Aujourd'hui";
-  }
-
-  const sameYesterday =
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear();
-
-  if (sameYesterday) {
-    return "Hier";
-  }
-
-  const formatted = new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-}
-
 function buildDateGroups(depenses: Depense[]): DateGroup[] {
   const grouped = new Map<string, Depense[]>();
 
@@ -167,13 +134,12 @@ function buildDateGroups(depenses: Depense[]): DateGroup[] {
 
   return [...grouped.entries()].map(([dateKey, items]) => ({
     data: items,
-    title: getDateLabel(dateKey),
+    title: formatDate(dateKey),
   }));
 }
 
 function buildCategorySummary(depenses: Depense[]): CategorySummaryItem[] {
   const totals = new Map<string, number>();
-  const total = depenses.reduce((sum, depense) => sum + depense.montant, 0);
 
   for (const depense of depenses) {
     totals.set(depense.categorie, (totals.get(depense.categorie) ?? 0) + depense.montant);
@@ -185,7 +151,6 @@ function buildCategorySummary(depenses: Depense[]): CategorySummaryItem[] {
       color: getCategoryColor(label),
       label,
       montant,
-      ratio: total > 0 ? montant / total : 0,
     }));
 }
 
@@ -255,7 +220,10 @@ function SearchHeader({
           return (
             <Pressable
               key={filter.key}
-              onPress={() => onSelectEnvelope(filter.key)}
+              onPress={() => {
+                void Haptics.selectionAsync();
+                onSelectEnvelope(filter.key);
+              }}
               style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
             >
               <Text style={selected ? styles.filterChipTextSelected : styles.filterChipText}>
@@ -265,14 +233,26 @@ function SearchHeader({
           );
         })}
 
-        <Pressable onPress={onOpenCategoryModal} style={styles.actionChip}>
+        <Pressable
+          onPress={() => {
+            void Haptics.selectionAsync();
+            onOpenCategoryModal();
+          }}
+          style={styles.actionChip}
+        >
           <Ionicons color={COLORS.primaryDark} name="funnel-outline" size={16} />
           <Text style={styles.actionChipText}>
             {selectedCategory ? `Categorie: ${selectedCategory}` : "Categorie"}
           </Text>
         </Pressable>
 
-        <Pressable onPress={onOpenSortModal} style={styles.actionChip}>
+        <Pressable
+          onPress={() => {
+            void Haptics.selectionAsync();
+            onOpenSortModal();
+          }}
+          style={styles.actionChip}
+        >
           <Ionicons color={COLORS.primaryDark} name="swap-vertical-outline" size={16} />
           <Text style={styles.actionChipText}>{selectedSortLabel}</Text>
         </Pressable>
@@ -281,98 +261,12 @@ function SearchHeader({
   );
 }
 
-function CategorySummaryCard({ items }: { items: CategorySummaryItem[] }) {
-  if (items.length === 0) {
-    return null;
-  }
-
-  return (
-    <View style={styles.summaryCard}>
-      <Text style={styles.summaryTitle}>Repartition par categorie</Text>
-      {items.map((item) => (
-        <View key={item.label} style={styles.summaryRow}>
-          <View style={styles.summaryTopRow}>
-            <View style={styles.summaryLabelWrap}>
-              <View style={[styles.summaryDot, { backgroundColor: item.color }]} />
-              <Text style={styles.summaryLabel}>{item.label}</Text>
-            </View>
-            <Text style={styles.summaryAmount}>{formatCurrency(item.montant)}</Text>
-          </View>
-
-          <View style={styles.summaryTrack}>
-            <View
-              style={[
-                styles.summaryFill,
-                {
-                  backgroundColor: item.color,
-                  width: `${Math.max(4, Math.round(item.ratio * 100))}%`,
-                },
-              ]}
-            />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function HistoryItem({
-  depense,
-  onDelete,
-}: {
-  depense: Depense;
-  onDelete: (depense: Depense) => void;
-}) {
-  return (
-    <Swipeable
-      overshootRight={false}
-      renderRightActions={() => (
-        <Pressable
-          onPress={() => onDelete(depense)}
-          style={({ pressed }) => [styles.deleteAction, pressed ? styles.deleteActionPressed : null]}
-        >
-          <Ionicons color={COLORS.card} name="trash-outline" size={18} />
-          <Text style={styles.deleteActionText}>Supprimer</Text>
-        </Pressable>
-      )}
-    >
-      <View style={styles.historyItem}>
-        <View style={styles.historyLeft}>
-          <View style={styles.historyTitleRow}>
-            <Text numberOfLines={1} style={styles.historyDescription}>
-              {depense.description}
-            </Text>
-            <View
-              style={[
-                styles.categoryBadge,
-                { backgroundColor: `${getCategoryColor(depense.categorie)}18` },
-              ]}
-            >
-              <Text style={[styles.categoryBadgeText, { color: getCategoryColor(depense.categorie) }]}>
-                {depense.categorie}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.historyMeta}>
-            {getEnvelopeLabel(depense.enveloppe_type)} - {depense.heure}
-          </Text>
-        </View>
-
-        <Text style={styles.historyAmount}>{formatCurrency(depense.montant)}</Text>
-      </View>
-    </Swipeable>
-  );
-}
-
 function MonthHistorySection({
-  categorySummary,
   depenses,
   isCurrent,
   mois,
   onDelete,
 }: {
-  categorySummary: CategorySummaryItem[];
   depenses: Depense[];
   isCurrent: boolean;
   mois: Mois;
@@ -381,16 +275,20 @@ function MonthHistorySection({
   const [expanded, setExpanded] = useState(isCurrent);
   const dateGroups = useMemo(() => buildDateGroups(depenses), [depenses]);
   const total = useMemo(() => depenses.reduce((sum, item) => sum + item.montant, 0), [depenses]);
+  const categorySummary = useMemo(() => buildCategorySummary(depenses), [depenses]);
 
   const header = (
     <Pressable
       disabled={isCurrent}
-      onPress={() => setExpanded((value) => !value)}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        setExpanded((value) => !value);
+      }}
       style={[styles.monthHeaderCard, isCurrent ? styles.currentMonthCard : null]}
     >
       <View style={styles.monthHeaderMain}>
         <View style={styles.monthHeaderTitleWrap}>
-          <Text style={styles.monthTitle}>{mois.label}</Text>
+          <Text style={styles.monthTitle}>{formatMois(mois.label)}</Text>
           {isCurrent ? (
             <View style={styles.currentBadge}>
               <Text style={styles.currentBadgeText}>En cours</Text>
@@ -399,7 +297,7 @@ function MonthHistorySection({
         </View>
 
         <Text style={styles.monthHeaderMeta}>
-          {depenses.length} depenses - Total: {formatCurrency(total)}
+          {depenses.length} depenses - Total: {formatMontant(total)}
         </Text>
       </View>
 
@@ -421,12 +319,21 @@ function MonthHistorySection({
     <View style={styles.monthSectionWrap}>
       {header}
 
-      {!isCurrent ? <CategorySummaryCard items={categorySummary} /> : null}
+      <MonthSummaryCard
+        categories={categorySummary.map((item) => ({
+          color: item.color,
+          label: item.label,
+          montant: item.montant,
+        }))}
+        depense={total}
+        restant={mois.salaire - total}
+        salaire={mois.salaire}
+      />
 
       <SectionList
         contentContainerStyle={styles.innerSectionContent}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <HistoryItem depense={item} onDelete={onDelete} />}
+        renderItem={({ item }) => <DepenseItem depense={item} onDelete={onDelete} />}
         renderSectionHeader={({ section: { title } }) => (
           <View style={styles.dateHeader}>
             <Text style={styles.dateHeaderText}>{title}</Text>
@@ -506,7 +413,7 @@ export default function HistoriqueScreen() {
         item.categorie,
         getEnvelopeLabel(item.enveloppe_type),
         String(item.montant),
-        formatCurrency(item.montant),
+        formatMontant(item.montant),
       ]
         .map((value) => normalizeText(value))
         .join(" ");
@@ -554,16 +461,6 @@ export default function HistoriqueScreen() {
     [depenses]
   );
 
-  const categorySummaryByMonth = useMemo(() => {
-    const map = new Map<number, CategorySummaryItem[]>();
-
-    for (const section of monthSections) {
-      map.set(section.mois.id, buildCategorySummary(section.depenses));
-    }
-
-    return map;
-  }, [monthSections]);
-
   const selectedSortLabel = SORT_OPTIONS.find((item) => item.key === sortKey)?.label ?? "Plus recent";
 
   const handleDelete = useCallback(
@@ -596,133 +493,135 @@ export default function HistoriqueScreen() {
   );
 
   if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Chargement de l'historique...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
-    <View style={styles.container}>
-      <SearchHeader
-        onChangeText={setQuery}
-        onOpenCategoryModal={() => setShowCategoryModal(true)}
-        onOpenSortModal={() => setShowSortModal(true)}
-        onSelectEnvelope={setSelectedEnvelope}
-        query={query}
-        selectedCategory={selectedCategory}
-        selectedEnvelope={selectedEnvelope}
-        selectedSortLabel={selectedSortLabel}
-      />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={96}
+      style={styles.container}
+    >
+      <StatusBar style="dark" />
+      <View style={styles.container}>
+        <SearchHeader
+          onChangeText={setQuery}
+          onOpenCategoryModal={() => setShowCategoryModal(true)}
+          onOpenSortModal={() => setShowSortModal(true)}
+          onSelectEnvelope={setSelectedEnvelope}
+          query={query}
+          selectedCategory={selectedCategory}
+          selectedEnvelope={selectedEnvelope}
+          selectedSortLabel={selectedSortLabel}
+        />
 
-      <FlatList
-        contentContainerStyle={styles.listContent}
-        data={archivedSections}
-        keyExtractor={(item) => String(item.mois.id)}
-        ListFooterComponent={
-          <View style={styles.footerCard}>
-            <Text style={styles.footerTitle}>Total general</Text>
-            <Text style={styles.footerMeta}>
-              {depenses.length} depenses - {formatCurrency(totalAllTime)}
-            </Text>
-          </View>
-        }
-        ListHeaderComponent={
-          currentSection ? (
-            <MonthHistorySection
-              categorySummary={categorySummaryByMonth.get(currentSection.mois.id) ?? []}
-              depenses={currentSection.depenses}
-              isCurrent
-              mois={currentSection.mois}
-              onDelete={handleDelete}
-            />
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>Aucun mois en cours</Text>
-              <Text style={styles.emptySubtitle}>
-                L'historique apparaitra ici des que tu commenceras a enregistrer des depenses.
+        <FlatList
+          contentContainerStyle={styles.listContent}
+          data={archivedSections}
+          keyExtractor={(item) => String(item.mois.id)}
+          ListFooterComponent={
+            <View style={styles.footerCard}>
+              <Text style={styles.footerTitle}>Total general</Text>
+              <Text style={styles.footerMeta}>
+                {depenses.length} depenses - {formatMontant(totalAllTime)}
               </Text>
             </View>
-          )
-        }
-        renderItem={({ item }) => (
-          <MonthHistorySection
-            categorySummary={categorySummaryByMonth.get(item.mois.id) ?? []}
-            depenses={item.depenses}
-            isCurrent={false}
-            mois={item.mois}
-            onDelete={handleDelete}
-          />
-        )}
-        showsVerticalScrollIndicator={false}
-      />
+          }
+          ListHeaderComponent={
+            currentSection ? (
+              <MonthHistorySection
+                depenses={currentSection.depenses}
+                isCurrent
+                mois={currentSection.mois}
+                onDelete={handleDelete}
+              />
+            ) : (
+              <EmptyState
+                context="historique"
+                description="L'historique apparaitra ici des que tu commenceras a enregistrer des depenses."
+                title="Historique vide"
+              />
+            )
+          }
+          renderItem={({ item }) => (
+            <MonthHistorySection
+              depenses={item.depenses}
+              isCurrent={false}
+              mois={item.mois}
+              onDelete={handleDelete}
+            />
+          )}
+          showsVerticalScrollIndicator={false}
+        />
 
-      <Modal
-        animationType="slide"
-        onRequestClose={() => setShowCategoryModal(false)}
-        transparent
-        visible={showCategoryModal}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable onPress={() => setShowCategoryModal(false)} style={styles.modalBackdropPressable} />
-          <View style={styles.bottomSheet}>
-            <Text style={styles.bottomSheetTitle}>Filtrer par categorie</Text>
-            {categoryOptions.map((option) => {
-              const isAll = option === "Toutes les categories";
-              const selected = isAll ? selectedCategory === null : selectedCategory === option;
+        <Modal
+          animationType="slide"
+          onRequestClose={() => setShowCategoryModal(false)}
+          transparent
+          visible={showCategoryModal}
+        >
+          <View style={styles.modalBackdrop}>
+            <Pressable onPress={() => setShowCategoryModal(false)} style={styles.modalBackdropPressable} />
+            <View style={styles.bottomSheet}>
+              <Text style={styles.bottomSheetTitle}>Filtrer par categorie</Text>
+              {categoryOptions.map((option) => {
+                const isAll = option === "Toutes les categories";
+                const selected = isAll ? selectedCategory === null : selectedCategory === option;
 
-              return (
-                <Pressable
-                  key={option}
-                  onPress={() => {
-                    setSelectedCategory(isAll ? null : option);
-                    setShowCategoryModal(false);
-                  }}
-                  style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
-                >
-                  <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
-                    {option}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      setSelectedCategory(isAll ? null : option);
+                      setShowCategoryModal(false);
+                    }}
+                    style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
+                  >
+                    <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
+                      {option}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      <Modal
-        animationType="slide"
-        onRequestClose={() => setShowSortModal(false)}
-        transparent
-        visible={showSortModal}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable onPress={() => setShowSortModal(false)} style={styles.modalBackdropPressable} />
-          <View style={styles.bottomSheet}>
-            <Text style={styles.bottomSheetTitle}>Trier</Text>
-            {SORT_OPTIONS.map((option) => {
-              const selected = sortKey === option.key;
+        <Modal
+          animationType="slide"
+          onRequestClose={() => setShowSortModal(false)}
+          transparent
+          visible={showSortModal}
+        >
+          <View style={styles.modalBackdrop}>
+            <Pressable onPress={() => setShowSortModal(false)} style={styles.modalBackdropPressable} />
+            <View style={styles.bottomSheet}>
+              <Text style={styles.bottomSheetTitle}>Trier</Text>
+              {SORT_OPTIONS.map((option) => {
+                const selected = sortKey === option.key;
 
-              return (
-                <Pressable
-                  key={option.key}
-                  onPress={() => {
-                    setSortKey(option.key);
-                    setShowSortModal(false);
-                  }}
-                  style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
-                >
-                  <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      setSortKey(option.key);
+                      setShowSortModal(false);
+                    }}
+                    style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
+                  >
+                    <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -756,15 +655,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 14,
   },
-  categoryBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  categoryBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
   container: {
     backgroundColor: COLORS.background,
     flex: 1,
@@ -793,43 +683,6 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 13,
     fontWeight: "700",
-  },
-  deleteAction: {
-    alignItems: "center",
-    backgroundColor: COLORS.danger,
-    borderRadius: 16,
-    flexDirection: "row",
-    gap: 8,
-    justifyContent: "center",
-    marginBottom: 8,
-    marginLeft: 10,
-    marginTop: 8,
-    paddingHorizontal: 18,
-  },
-  deleteActionPressed: {
-    opacity: 0.85,
-  },
-  deleteActionText: {
-    color: COLORS.card,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  emptyCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 18,
-    marginBottom: 16,
-    padding: 20,
-  },
-  emptySubtitle: {
-    color: COLORS.muted,
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  emptyTitle: {
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 6,
   },
   filterChip: {
     borderRadius: 999,
@@ -877,57 +730,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 6,
   },
-  historyAmount: {
-    color: COLORS.danger,
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 12,
-  },
-  historyDescription: {
-    color: COLORS.text,
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    marginRight: 8,
-  },
-  historyItem: {
-    alignItems: "center",
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  historyLeft: {
-    flex: 1,
-  },
-  historyMeta: {
-    color: COLORS.muted,
-    fontSize: 13,
-    marginTop: 6,
-  },
-  historyTitleRow: {
-    alignItems: "center",
-    flexDirection: "row",
-  },
   innerSectionContent: {
     paddingTop: 8,
   },
   listContent: {
     padding: 20,
     paddingBottom: 120,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    backgroundColor: COLORS.background,
-    flex: 1,
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: COLORS.muted,
-    fontSize: 15,
   },
   modalBackdrop: {
     backgroundColor: "rgba(17, 24, 39, 0.22)",
@@ -1007,55 +815,5 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 15,
     fontWeight: "700",
-  },
-  summaryAmount: {
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  summaryCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 18,
-    marginTop: 10,
-    padding: 16,
-  },
-  summaryDot: {
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  summaryFill: {
-    borderRadius: 999,
-    height: "100%",
-  },
-  summaryLabel: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  summaryLabelWrap: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  summaryRow: {
-    marginTop: 12,
-  },
-  summaryTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  summaryTopRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  summaryTrack: {
-    backgroundColor: COLORS.softPrimary,
-    borderRadius: 999,
-    height: 8,
-    overflow: "hidden",
   },
 });

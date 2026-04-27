@@ -1,21 +1,43 @@
-import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 const MONTHLY_REMINDER_ID = "budget-flow-monthly-reminder";
 const INACTIVITY_REMINDER_ID = "budget-flow-inactivity-reminder";
 const ALERT_CHANNEL_ID = "budget-flow-alerts";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import("expo-notifications");
+
+/** Evite de charger expo-notifications dans Expo Go ou dans un environnement non compatible. */
+async function getNotificationsModule(): Promise<NotificationsModule | null> {
+  if (Constants.appOwnership === "expo") {
+    return null;
+  }
+
+  return import("expo-notifications");
+}
+
+/** Configure le handler d'affichage local une seule fois, quand le module est disponible. */
+async function ensureHandler(): Promise<NotificationsModule | null> {
+  const Notifications = await getNotificationsModule();
+
+  if (!Notifications) {
+    return null;
+  }
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+
+  return Notifications;
+}
 
 /** Cree le canal Android utilise par les notifications locales de l'application. */
-async function ensureNotificationChannel(): Promise<void> {
+async function ensureNotificationChannel(Notifications: NotificationsModule): Promise<void> {
   if (Platform.OS !== "android") {
     return;
   }
@@ -30,23 +52,35 @@ async function ensureNotificationChannel(): Promise<void> {
 }
 
 /** Verifie si l'application peut afficher des notifications locales et configure Android au besoin. */
-async function ensureNotificationsEnabled(): Promise<boolean> {
+async function ensureNotificationsEnabled(): Promise<NotificationsModule | null> {
+  const Notifications = await ensureHandler();
+
+  if (!Notifications) {
+    return null;
+  }
+
   const permissions = await Notifications.getPermissionsAsync();
 
   if (!permissions.granted) {
-    return false;
+    return null;
   }
 
-  await ensureNotificationChannel();
-  return true;
+  await ensureNotificationChannel(Notifications);
+  return Notifications;
 }
 
 /** Demande les permissions de notification a l'utilisateur. */
 export async function requestPermissions(): Promise<boolean> {
+  const Notifications = await ensureHandler();
+
+  if (!Notifications) {
+    return false;
+  }
+
   const permissions = await Notifications.getPermissionsAsync();
 
   if (permissions.granted) {
-    await ensureNotificationChannel();
+    await ensureNotificationChannel(Notifications);
     return true;
   }
 
@@ -56,13 +90,15 @@ export async function requestPermissions(): Promise<boolean> {
     return false;
   }
 
-  await ensureNotificationChannel();
+  await ensureNotificationChannel(Notifications);
   return true;
 }
 
 /** Programme un rappel recurrent chaque premier jour du mois pour saisir le salaire. */
 export async function scheduleMonthlyReminder(): Promise<string | null> {
-  if (!(await ensureNotificationsEnabled())) {
+  const Notifications = await ensureNotificationsEnabled();
+
+  if (!Notifications) {
     return null;
   }
 
@@ -70,7 +106,7 @@ export async function scheduleMonthlyReminder(): Promise<string | null> {
 
   return Notifications.scheduleNotificationAsync({
     content: {
-      body: "Saisis ton salaire pour bien demarrer 💰",
+      body: "Saisis ton salaire pour bien demarrer.",
       sound: true,
       title: "Nouveau mois !",
     },
@@ -91,7 +127,9 @@ export async function sendEnveloppeAlert(
   montantRestant: number,
   pourcentage: number
 ): Promise<string | null> {
-  if (!(await ensureNotificationsEnabled())) {
+  const Notifications = await ensureNotificationsEnabled();
+
+  if (!Notifications) {
     return null;
   }
 
@@ -116,7 +154,9 @@ export async function sendEnveloppeAlert(
 
 /** Programme un rappel si aucune nouvelle depense n'est enregistree pendant 3 jours. */
 export async function scheduleInactivityReminder(): Promise<string | null> {
-  if (!(await ensureNotificationsEnabled())) {
+  const Notifications = await ensureNotificationsEnabled();
+
+  if (!Notifications) {
     return null;
   }
 
@@ -124,7 +164,7 @@ export async function scheduleInactivityReminder(): Promise<string | null> {
 
   return Notifications.scheduleNotificationAsync({
     content: {
-      body: "N'oublie pas de noter tes depenses 📝",
+      body: "N'oublie pas de noter tes depenses.",
       sound: true,
       title: "Budget Flow",
     },
@@ -140,5 +180,11 @@ export async function scheduleInactivityReminder(): Promise<string | null> {
 
 /** Annule le rappel d'inactivite actuellement programme s'il existe. */
 export async function cancelInactivityReminder(): Promise<void> {
+  const Notifications = await getNotificationsModule();
+
+  if (!Notifications) {
+    return;
+  }
+
   await Notifications.cancelScheduledNotificationAsync(INACTIVITY_REMINDER_ID).catch(() => undefined);
 }

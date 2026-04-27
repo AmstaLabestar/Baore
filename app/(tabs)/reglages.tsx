@@ -1,9 +1,10 @@
 import Slider from "@react-native-community/slider";
 import Constants from "expo-constants";
+import * as Haptics from "expo-haptics";
+import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -12,6 +13,7 @@ import {
   View,
 } from "react-native";
 
+import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   cloturerMois,
   createMois,
@@ -25,6 +27,7 @@ import {
   type ParametreCle,
 } from "@/database/queries";
 import { notifyBudgetUpdated, subscribeToBudgetUpdates } from "@/shared/services/budget-events";
+import { formatMontant } from "@/utils/formatters";
 
 const COLORS = {
   primary: "#4f46e5",
@@ -47,12 +50,6 @@ interface AllocationState {
   pct_epargne: number;
   pct_investissement: number;
   pct_urgence: number;
-}
-
-function formatCurrency(value: number): string {
-  return `${new Intl.NumberFormat("fr-FR", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(value))} FCFA`;
 }
 
 function getMonthLabel(date: Date): string {
@@ -234,6 +231,7 @@ export default function ReglagesScreen() {
 
     try {
       setIsSavingAllocation(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const entries: Array<[ParametreCle, number]> = [
         ["pct_charges", allocation.pct_charges],
@@ -294,6 +292,7 @@ export default function ReglagesScreen() {
             void (async () => {
               try {
                 setIsClosingMonth(true);
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
                 await cloturerMois(currentMonth.id);
 
@@ -327,11 +326,7 @@ export default function ReglagesScreen() {
   }, [currentMonth, loadData]);
 
   if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator color={COLORS.primary} size="large" />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -340,6 +335,7 @@ export default function ReglagesScreen() {
       showsVerticalScrollIndicator={false}
       style={styles.container}
     >
+      <StatusBar style="dark" />
       <Text style={styles.pageTitle}>Reglages</Text>
 
       <SettingsSection
@@ -418,6 +414,7 @@ export default function ReglagesScreen() {
           minimumTrackTintColor={COLORS.warning}
           minimumValue={5}
           onSlidingComplete={(value) => {
+            void Haptics.selectionAsync();
             void persistAlertThreshold(Math.round(value));
           }}
           onValueChange={(value) => setAlertThreshold(Math.round(value))}
@@ -426,7 +423,7 @@ export default function ReglagesScreen() {
           value={alertThreshold}
         />
         <Text style={styles.previewText}>
-          Tu seras alerte quand il reste {alertThreshold}% soit {formatCurrency(thresholdPreviewAmount)}
+          Tu seras alerte quand il reste {alertThreshold}% soit {formatMontant(thresholdPreviewAmount)}
           {" "}sur Charges
         </Text>
         {isSavingAlert ? <Text style={styles.helperText}>Enregistrement du seuil...</Text> : null}
@@ -442,12 +439,12 @@ export default function ReglagesScreen() {
             <RowSeparator />
             <View style={styles.metricRow}>
               <Text style={styles.rowLabel}>Salaire</Text>
-              <Text style={styles.rowValue}>{formatCurrency(currentMonth.salaire)}</Text>
+              <Text style={styles.rowValue}>{formatMontant(currentMonth.salaire)}</Text>
             </View>
             <RowSeparator />
             <View style={styles.metricRow}>
               <Text style={styles.rowLabel}>Total depense</Text>
-              <Text style={styles.rowValue}>{formatCurrency(currentMonthSpent)}</Text>
+              <Text style={styles.rowValue}>{formatMontant(currentMonthSpent)}</Text>
             </View>
             <RowSeparator />
             <View style={styles.metricRow}>
@@ -458,7 +455,7 @@ export default function ReglagesScreen() {
                   currentMonthSaved >= 0 ? styles.successText : styles.dangerText,
                 ]}
               >
-                {formatCurrency(currentMonthSaved)}
+                {formatMontant(currentMonthSaved)}
               </Text>
             </View>
 
@@ -486,14 +483,14 @@ export default function ReglagesScreen() {
         <View style={styles.metricRow}>
           <Text style={styles.rowLabel}>Total depense</Text>
           <Text style={styles.rowValue}>
-            {formatCurrency(allDepenses.reduce((sum, depense) => sum + depense.montant, 0))}
+            {formatMontant(allDepenses.reduce((sum, depense) => sum + depense.montant, 0))}
           </Text>
         </View>
         <RowSeparator />
         <View style={styles.metricRow}>
           <Text style={styles.rowLabel}>Categorie la plus depensiere</Text>
           <Text style={styles.rowValue}>
-            {topCategory ? `${topCategory.label} - ${formatCurrency(topCategory.montant)}` : "-"}
+            {topCategory ? `${topCategory.label} - ${formatMontant(topCategory.montant)}` : "-"}
           </Text>
         </View>
         <RowSeparator />
@@ -501,7 +498,7 @@ export default function ReglagesScreen() {
           <Text style={styles.rowLabel}>Mois le plus econome</Text>
           <Text style={styles.rowValue}>
             {mostEconomicalMonth
-              ? `${mostEconomicalMonth.label} - ${formatCurrency(mostEconomicalMonth.economie)}`
+              ? `${mostEconomicalMonth.label} - ${formatMontant(mostEconomicalMonth.economie)}`
               : "-"}
           </Text>
         </View>
@@ -560,10 +557,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   loadingContainer: {
-    alignItems: "center",
-    backgroundColor: COLORS.background,
-    flex: 1,
-    justifyContent: "center",
+    display: "none",
   },
   metricRow: {
     alignItems: "center",

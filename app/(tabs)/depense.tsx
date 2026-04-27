@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   KeyboardAvoidingView,
@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 
+import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   addDepense,
   createMoisWithEnveloppes,
@@ -31,6 +32,7 @@ import {
   type Mois,
 } from "@/database/queries";
 import { notifyBudgetUpdated } from "@/shared/services/budget-events";
+import { formatMontant } from "@/utils/formatters";
 
 const COLORS = {
   primary: "#4f46e5",
@@ -92,12 +94,6 @@ const ENVELOPE_CONFIG: Record<
 type CategoryLabel = (typeof CATEGORIES)[number]["label"];
 type ParametresMap = Awaited<ReturnType<typeof getParametresMap>>;
 
-function formatCurrency(value: number): string {
-  return `${new Intl.NumberFormat("fr-FR", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(value))} FCFA`;
-}
-
 function getCurrentMonthLabel(date: Date): string {
   const formatted = new Intl.DateTimeFormat("fr-FR", {
     month: "long",
@@ -140,6 +136,7 @@ export default function DepenseScreen() {
   const amountInputRef = useRef<TextInput>(null);
   const successScale = useRef(new Animated.Value(0.6)).current;
   const successOpacity = useRef(new Animated.Value(0)).current;
+  const saveButtonScale = useRef(new Animated.Value(1)).current;
 
   const [currentMonth, setCurrentMonth] = useState<Mois | null>(null);
   const [enveloppes, setEnveloppes] = useState<EnveloppeAvecSolde[]>([]);
@@ -163,6 +160,38 @@ export default function DepenseScreen() {
     Boolean(selectedEnveloppe) &&
     Boolean(currentMonth) &&
     !isSaving;
+
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(saveButtonScale, {
+          duration: 800,
+          toValue: 1.02,
+          useNativeDriver: true,
+        }),
+        Animated.timing(saveButtonScale, {
+          duration: 800,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    if (canSave) {
+      pulseAnimation.start();
+    } else {
+      saveButtonScale.stopAnimation();
+      Animated.timing(saveButtonScale, {
+        duration: 180,
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    return () => {
+      pulseAnimation.stop();
+    };
+  }, [canSave, saveButtonScale]);
 
   const focusDescription = useCallback(() => {
     requestAnimationFrame(() => {
@@ -254,6 +283,7 @@ export default function DepenseScreen() {
 
     try {
       setIsCreatingMonth(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const appParametres = parametres ?? (await getParametresMap());
       const enveloppesToCreate = buildEnveloppesFromParametres(salaire, appParametres);
@@ -308,6 +338,7 @@ export default function DepenseScreen() {
 
     try {
       setIsSaving(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const now = new Date();
       const heure = new Intl.DateTimeFormat("fr-FR", {
@@ -354,15 +385,12 @@ export default function DepenseScreen() {
   ]);
 
   if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator color={COLORS.primary} size="large" />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <LinearGradient colors={[COLORS.backgroundSoft, COLORS.card]} style={styles.gradient}>
+      <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={96}
@@ -456,7 +484,7 @@ export default function DepenseScreen() {
                     style={styles.amountInput}
                     value={amountInput}
                   />
-                  <Text style={styles.amountPreview}>{formatCurrency(parsedAmount || 0)}</Text>
+                  <Text style={styles.amountPreview}>{formatMontant(parsedAmount || 0)}</Text>
                 </Pressable>
               </View>
 
@@ -528,7 +556,7 @@ export default function DepenseScreen() {
                             isSelected ? styles.envelopeButtonAmountSelected : null,
                           ]}
                         >
-                          {formatCurrency(enveloppe.montant_restant)}
+                          {formatMontant(enveloppe.montant_restant)}
                         </Text>
                       </Pressable>
                     );
@@ -536,22 +564,24 @@ export default function DepenseScreen() {
                 </View>
               </View>
 
-              <Pressable
-                disabled={!canSave}
-                onPress={() => {
-                  void handleSave();
-                }}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  styles.saveButton,
-                  pressed && canSave ? styles.primaryButtonPressed : null,
-                  !canSave ? styles.primaryButtonDisabled : null,
-                ]}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {isSaving ? "Enregistrement..." : "Enregistrer"}
-                </Text>
-              </Pressable>
+              <Animated.View style={{ transform: [{ scale: saveButtonScale }] }}>
+                <Pressable
+                  disabled={!canSave}
+                  onPress={() => {
+                    void handleSave();
+                  }}
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    styles.saveButton,
+                    pressed && canSave ? styles.primaryButtonPressed : null,
+                    !canSave ? styles.primaryButtonDisabled : null,
+                  ]}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {isSaving ? "Enregistrement..." : "Enregistrer"}
+                  </Text>
+                </Pressable>
+              </Animated.View>
             </>
           )}
         </ScrollView>
@@ -693,10 +723,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loadingContainer: {
-    alignItems: "center",
-    backgroundColor: COLORS.background,
-    flex: 1,
-    justifyContent: "center",
+    display: "none",
   },
   pageTitle: {
     color: COLORS.text,
