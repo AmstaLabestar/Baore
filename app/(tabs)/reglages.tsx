@@ -29,6 +29,7 @@ import {
   type Mois,
   type ParametreCle,
 } from "@/database/queries";
+import { exportBudgetBackup } from "@/services/backup";
 import { notifyBudgetUpdated, subscribeToBudgetUpdates } from "@/shared/services/budget-events";
 import { formatMontant } from "@/utils/formatters";
 
@@ -170,6 +171,7 @@ export default function ReglagesScreen() {
   const [isSavingAllocation, setIsSavingAllocation] = useState(false);
   const [isSavingAlert, setIsSavingAlert] = useState(false);
   const [isClosingMonth, setIsClosingMonth] = useState(false);
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [showCloseMonthModal, setShowCloseMonthModal] = useState(false);
 
   const allocationTotal = useMemo(() => getAllocationTotal(allocation), [allocation]);
@@ -348,6 +350,29 @@ export default function ReglagesScreen() {
       setIsClosingMonth(false);
     }
   }, [currentMonth, loadData]);
+
+  const handleExportBackup = useCallback(async () => {
+    try {
+      setIsExportingBackup(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const result = await exportBudgetBackup();
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        "Sauvegarde creee",
+        result.shared
+          ? `Le fichier ${result.fileName} est pret a etre partage.`
+          : `Le fichier ${result.fileName} a ete enregistre sur cet appareil.`
+      );
+    } catch (error) {
+      console.error("Erreur d'export de la sauvegarde:", error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Erreur", getErrorMessage(error, "La sauvegarde n'a pas pu etre exportee."));
+    } finally {
+      setIsExportingBackup(false);
+    }
+  }, []);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -539,6 +564,27 @@ export default function ReglagesScreen() {
         <Text style={styles.aboutText}>
           Toutes vos donnees sont stockees localement sur votre telephone.
         </Text>
+      </SettingsSection>
+
+      <SettingsSection
+        footer="Un fichier JSON complet sera cree avec les mois, enveloppes, depenses et parametres."
+        title="Sauvegarde"
+      >
+        <Text style={styles.aboutText}>
+          Exporte tes donnees Budget Flow pour les conserver ou les partager.
+        </Text>
+
+        <Pressable
+          disabled={isExportingBackup}
+          onPress={() => {
+            void handleExportBackup();
+          }}
+          style={[styles.primaryButton, isExportingBackup ? styles.primaryButtonDisabled : null]}
+        >
+          <Text style={styles.primaryButtonText}>
+            {isExportingBackup ? "Export..." : "Exporter mes donnees"}
+          </Text>
+        </Pressable>
       </SettingsSection>
 
       <Modal
