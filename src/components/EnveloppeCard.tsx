@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
 import type { EnveloppeType } from "@/database/queries";
 import { formatMontant, getPourcentage } from "@/utils/formatters";
@@ -46,8 +46,13 @@ export function EnveloppeCard({
   seuil,
   type,
 }: EnveloppeCardProps) {
+  const { width: screenWidth } = useWindowDimensions();
   const animatedValue = useRef(new Animated.Value(0)).current;
   const config = ENVELOPE_CONFIG[type];
+  const horizontalPadding = 40;
+  const columnGap = 12;
+  const isCompact = screenWidth < 390;
+  const cardWidth = isCompact ? "100%" : (screenWidth - horizontalPadding - columnGap) / 2;
   const remainingRatio = getPourcentage(montantRestant, montantInitial);
   const spentRatio = getPourcentage(montantInitial - montantRestant, montantInitial) / 100;
   const state =
@@ -67,7 +72,7 @@ export function EnveloppeCard({
     }).start();
   }, [animatedValue, spentRatio]);
 
-  const width = animatedValue.interpolate({
+  const progressWidth = animatedValue.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
@@ -90,7 +95,7 @@ export function EnveloppeCard({
           : "#1a1a2e";
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { width: cardWidth }]}>
       <Pressable
         onPress={() => {
           void Haptics.selectionAsync();
@@ -105,12 +110,12 @@ export function EnveloppeCard({
         </View>
 
         <Text style={[styles.remaining, { color: textColor }]}>{formatMontant(montantRestant)}</Text>
-        <Text style={styles.initial}>
+        <Text numberOfLines={2} style={[styles.initial, { color: state === "normal" ? "#6b7280" : textColor }]}>
           Initial: {formatMontant(montantInitial)} - {Math.round(pourcentage)}%
         </Text>
 
         <View style={[styles.track, { backgroundColor: config.lightColor }]}>
-          <Animated.View style={[styles.fill, { backgroundColor: config.color, width }]} />
+          <Animated.View style={[styles.fill, { backgroundColor: config.color, width: progressWidth }]} />
         </View>
       </Pressable>
     </View>
@@ -146,16 +151,18 @@ const styles = StyleSheet.create({
     width: 32,
   },
   initial: {
-    color: "#6b7280",
     fontSize: 12,
+    lineHeight: 18,
     marginBottom: 14,
   },
   remaining: {
     fontSize: 20,
     fontWeight: "700",
+    lineHeight: 26,
     marginBottom: 6,
   },
   title: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -166,6 +173,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   wrap: {
-    width: "48%",
+    minWidth: 0,
   },
 });

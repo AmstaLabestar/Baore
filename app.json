@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Budget Flow",
-    "slug": "budget-flow",
+    "name": "Baore",
+    "slug": "baore",
     "version": "1.0.0",
-    "scheme": "budgetflow",
+    "scheme": "baore",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

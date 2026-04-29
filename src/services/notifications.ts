@@ -46,7 +46,7 @@ async function ensureNotificationChannel(Notifications: NotificationsModule): Pr
     importance: Notifications.AndroidImportance.HIGH,
     lightColor: "#4f46e5",
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    name: "Budget Flow Alerts",
+    name: "Baore Alerts",
     vibrationPattern: [0, 250, 250, 250],
   });
 }
@@ -166,7 +166,7 @@ export async function scheduleInactivityReminder(): Promise<string | null> {
     content: {
       body: "N'oublie pas de noter tes depenses.",
       sound: true,
-      title: "Budget Flow",
+      title: "Baore",
     },
     identifier: INACTIVITY_REMINDER_ID,
     trigger: {

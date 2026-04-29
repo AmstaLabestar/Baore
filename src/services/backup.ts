@@ -59,7 +59,7 @@ export async function exportBudgetBackup(): Promise<ExportBackupResult> {
   );
 
   const payload = {
-    app: "Budget Flow",
+    app: "Baore",
     exported_at: exportedAt.toISOString(),
     schema_version: 1,
     version: Constants.expoConfig?.version ?? "1.0.0",
@@ -82,7 +82,7 @@ export async function exportBudgetBackup(): Promise<ExportBackupResult> {
   if (canShare) {
     await Sharing.shareAsync(fileUri, {
       UTI: "public.json",
-      dialogTitle: "Exporter la sauvegarde Budget Flow",
+      dialogTitle: "Exporter la sauvegarde Baore",
       mimeType: "application/json",
     });
   }

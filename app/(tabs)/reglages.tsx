@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -156,6 +157,8 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default function ReglagesScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 390;
   const [allocation, setAllocation] = useState<AllocationState>({
     pct_charges: 50,
     pct_epargne: 20,
@@ -571,7 +574,7 @@ export default function ReglagesScreen() {
         title="Sauvegarde"
       >
         <Text style={styles.aboutText}>
-          Exporte tes donnees Budget Flow pour les conserver ou les partager.
+          Exporte tes donnees Baore pour les conserver ou les partager.
         </Text>
 
         <Pressable
@@ -645,7 +648,13 @@ export default function ReglagesScreen() {
             <Text style={styles.sheetSectionTitle}>Etat des enveloppes</Text>
             <View style={styles.enveloppesWrap}>
               {currentMonthEnveloppes.map((enveloppe) => (
-                <View key={enveloppe.id} style={styles.enveloppeSummaryCard}>
+                <View
+                  key={enveloppe.id}
+                  style={[
+                    styles.enveloppeSummaryCard,
+                    isCompact ? styles.enveloppeSummaryCardCompact : null,
+                  ]}
+                >
                   <View style={styles.enveloppeSummaryHeader}>
                     <View
                       style={[
@@ -776,6 +785,9 @@ const styles = StyleSheet.create({
     padding: 14,
     width: "48%",
   },
+  enveloppeSummaryCardCompact: {
+    width: "100%",
+  },
   enveloppeSummaryHeader: {
     alignItems: "center",
     flexDirection: "row",
@@ -788,6 +800,7 @@ const styles = StyleSheet.create({
   },
   enveloppeSummaryTitle: {
     color: COLORS.text,
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: "700",
   },

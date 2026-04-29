@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { AlertBanner } from "@/components/AlertBanner";
@@ -114,6 +115,8 @@ function buildCategorieResume(depenses: Depense[]): CategorieResume[] {
 }
 
 export default function HomeScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 390;
   const router = useRouter();
   const [currentMonth, setCurrentMonth] = useState<Mois | null>(null);
   const [depenses, setDepenses] = useState<Depense[]>([]);
@@ -263,12 +266,12 @@ export default function HomeScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.brandTitle}>Budget Flow</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.brandTitle}>Baore</Text>
             <Text style={styles.monthLabel}>{displayMonthLabel}</Text>
           </View>
 
-          <View style={styles.totalSpentBlock}>
+          <View style={[styles.totalSpentBlock, isCompact ? styles.totalSpentBlockCompact : null]}>
             <Text style={styles.totalSpentLabel}>Depense ce mois</Text>
             <Text style={styles.totalSpentValue}>{formatMontant(totalDepense)}</Text>
           </View>
@@ -420,6 +423,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 28,
     fontWeight: "700",
+    lineHeight: 34,
   },
   categoryAmount: {
     color: COLORS.text,
@@ -446,9 +450,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flex: 1,
     gap: 10,
+    minWidth: 0,
   },
   categoryName: {
     color: COLORS.text,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: "500",
   },
@@ -484,12 +490,18 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 18,
+    rowGap: 12,
+  },
+  headerLeft: {
+    flexShrink: 1,
   },
   monthLabel: {
     color: COLORS.muted,
     fontSize: 15,
+    lineHeight: 20,
     marginTop: 4,
   },
   progressFill: {
@@ -570,19 +582,27 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 18,
     fontWeight: "700",
+    lineHeight: 24,
   },
   totalSpentBlock: {
     alignItems: "flex-end",
     marginLeft: 16,
+    minWidth: 120,
+  },
+  totalSpentBlockCompact: {
+    alignItems: "flex-start",
+    marginLeft: 0,
   },
   totalSpentLabel: {
     color: COLORS.muted,
     fontSize: 12,
+    lineHeight: 16,
     marginBottom: 4,
   },
   totalSpentValue: {
     color: COLORS.danger,
     fontSize: 18,
     fontWeight: "700",
+    lineHeight: 24,
   },
 });

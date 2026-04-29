@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { DepenseItem } from "@/components/DepenseItem";
@@ -376,6 +377,8 @@ function MonthHistorySection({
 }
 
 export default function HistoriqueScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 390;
   const [mois, setMois] = useState<Mois[]>([]);
   const [depenses, setDepenses] = useState<Depense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -768,7 +771,11 @@ export default function HistoriqueScreen() {
                           void Haptics.selectionAsync();
                           setEditEnveloppe(option.key);
                         }}
-                        style={[styles.enveloppeEditChip, selected ? styles.enveloppeEditChipSelected : null]}
+                        style={[
+                          styles.enveloppeEditChip,
+                          isCompact ? styles.enveloppeEditChipCompact : null,
+                          selected ? styles.enveloppeEditChipSelected : null,
+                        ]}
                       >
                         <Text style={selected ? styles.enveloppeEditChipTextSelected : styles.enveloppeEditChipText}>
                           {option.label}
@@ -858,6 +865,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    maxHeight: "88%",
     padding: 20,
     paddingBottom: 28,
   },
@@ -909,6 +917,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     color: COLORS.text,
     fontSize: 15,
+    lineHeight: 20,
     minHeight: 50,
     paddingHorizontal: 14,
   },
@@ -921,6 +930,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     width: "48%",
+  },
+  enveloppeEditChipCompact: {
+    width: "100%",
   },
   enveloppeEditChipSelected: {
     backgroundColor: COLORS.primary,
@@ -1029,16 +1041,20 @@ const styles = StyleSheet.create({
   },
   monthHeaderMain: {
     flex: 1,
+    minWidth: 0,
   },
   monthHeaderMeta: {
     color: COLORS.muted,
     fontSize: 13,
+    lineHeight: 18,
     marginTop: 6,
   },
   monthHeaderTitleWrap: {
     alignItems: "center",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
+    rowGap: 8,
   },
   monthSectionWrap: {
     marginBottom: 16,
@@ -1047,11 +1063,13 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 18,
     fontWeight: "700",
+    lineHeight: 24,
   },
   pageTitle: {
     color: COLORS.text,
     fontSize: 28,
     fontWeight: "700",
+    lineHeight: 34,
     marginBottom: 14,
   },
   primaryActionButton: {
@@ -1087,6 +1105,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     flex: 1,
     fontSize: 15,
+    minWidth: 0,
     paddingVertical: 0,
   },
   sheetOption: {

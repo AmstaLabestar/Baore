@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -137,6 +138,8 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default function DepenseScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 390;
   const tabBarHeight = useBottomTabBarHeight();
   const descriptionInputRef = useRef<TextInput>(null);
   const amountInputRef = useRef<TextInput>(null);
@@ -567,6 +570,7 @@ export default function DepenseScreen() {
                         onPress={() => setSelectedEnveloppe(enveloppe.type)}
                         style={[
                           styles.envelopeButton,
+                          isCompact ? styles.envelopeButtonCompact : null,
                           isSelected ? styles.envelopeButtonSelected : null,
                         ]}
                       >
@@ -622,7 +626,7 @@ export default function DepenseScreen() {
                 ]}
               >
                 <Text style={styles.primaryButtonText}>
-                  {isSaving ? "Enregistrement..." : "Valider et enregistrer la depense"}
+                  {isSaving ? "Enregistrement..." : "Enregistrer"}
                 </Text>
               </Pressable>
             </Animated.View>
@@ -727,6 +731,9 @@ const styles = StyleSheet.create({
     padding: 14,
     width: "48%",
   },
+  envelopeButtonCompact: {
+    width: "100%",
+  },
   envelopeButtonAmount: {
     color: COLORS.text,
     fontSize: 15,
@@ -747,8 +754,10 @@ const styles = StyleSheet.create({
   },
   envelopeButtonTitle: {
     color: COLORS.text,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: "700",
+    lineHeight: 20,
   },
   envelopeButtonTitleSelected: {
     color: COLORS.card,
@@ -778,6 +787,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 28,
     fontWeight: "700",
+    lineHeight: 34,
     marginBottom: 18,
   },
   helperText: {
@@ -846,7 +856,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   saveButton: {
+    backgroundColor: COLORS.success,
+    borderColor: "#059669",
+    borderWidth: 1,
     marginTop: 6,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
   },
   saveHint: {
     color: COLORS.muted,
@@ -883,6 +901,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 18,
     fontWeight: "700",
+    lineHeight: 24,
     marginBottom: 10,
   },
   stepBadge: {

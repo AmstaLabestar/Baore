@@ -1,16 +1,16 @@
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-/** Ecran de chargement reutilisable pendant l'initialisation de Budget Flow. */
+/** Ecran de chargement reutilisable pendant l'initialisation de Baore. */
 export function LoadingScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
       <View style={styles.logoWrap}>
         <View style={styles.logoBubble}>
-          <Text style={styles.logoText}>BF</Text>
+          <Text style={styles.logoText}>B</Text>
         </View>
-        <Text style={styles.title}>Budget Flow</Text>
+        <Text style={styles.title}>Baore</Text>
         <Text style={styles.subtitle}>On prepare ton espace budgetaire</Text>
       </View>
 
