@@ -6,6 +6,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,11 +19,13 @@ import {
   cloturerMois,
   createMois,
   getDepenses,
+  getEnveloppesByMois,
   getMois,
   getMoisEnCours,
   getParametresMap,
   updateParametre,
   type Depense,
+  type EnveloppeAvecSolde,
   type Mois,
   type ParametreCle,
 } from "@/database/queries";
@@ -51,6 +54,20 @@ interface AllocationState {
   pct_investissement: number;
   pct_urgence: number;
 }
+
+const ENVELOPE_LABELS = {
+  charges: "Charges",
+  epargne: "Epargne",
+  investissement: "Investissement",
+  urgence: "Urgence",
+} as const;
+
+const ENVELOPE_COLORS = {
+  charges: "#3b82f6",
+  epargne: "#10b981",
+  investissement: "#8b5cf6",
+  urgence: "#f59e0b",
+} as const;
 
 function getMonthLabel(date: Date): string {
   const formatted = new Intl.DateTimeFormat("fr-FR", {
@@ -133,6 +150,10 @@ function RowSeparator() {
   return <View style={styles.separator} />;
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function ReglagesScreen() {
   const [allocation, setAllocation] = useState<AllocationState>({
     pct_charges: 50,
@@ -142,12 +163,14 @@ export default function ReglagesScreen() {
   });
   const [alertThreshold, setAlertThreshold] = useState(20);
   const [currentMonth, setCurrentMonth] = useState<Mois | null>(null);
+  const [currentMonthEnveloppes, setCurrentMonthEnveloppes] = useState<EnveloppeAvecSolde[]>([]);
   const [allMonths, setAllMonths] = useState<Mois[]>([]);
   const [allDepenses, setAllDepenses] = useState<Depense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingAllocation, setIsSavingAllocation] = useState(false);
   const [isSavingAlert, setIsSavingAlert] = useState(false);
   const [isClosingMonth, setIsClosingMonth] = useState(false);
+  const [showCloseMonthModal, setShowCloseMonthModal] = useState(false);
 
   const allocationTotal = useMemo(() => getAllocationTotal(allocation), [allocation]);
   const canApplyAllocation = allocationTotal === 100 && !isSavingAllocation;
@@ -179,6 +202,10 @@ export default function ReglagesScreen() {
     () => getMostEconomicalMonth(allMonths, allDepenses),
     [allDepenses, allMonths]
   );
+  const currentMonthExpenseCount = useMemo(
+    () => (currentMonth ? allDepenses.filter((item) => item.mois_id === currentMonth.id).length : 0),
+    [allDepenses, currentMonth]
+  );
 
   const loadData = useCallback(async () => {
     const [settings, current, months, depenses] = await Promise.all([
@@ -188,7 +215,10 @@ export default function ReglagesScreen() {
       getDepenses(),
     ]);
 
+    const enveloppes = current ? await getEnveloppesByMois(current.id) : [];
+
     setCurrentMonth(current);
+    setCurrentMonthEnveloppes(enveloppes);
     setAllMonths(months);
     setAllDepenses(depenses);
     setAllocation({
@@ -253,7 +283,7 @@ export default function ReglagesScreen() {
       await loadData();
     } catch (error) {
       console.error("Erreur de mise a jour des pourcentages:", error);
-      Alert.alert("Erreur", "Les nouveaux pourcentages n'ont pas pu etre enregistres.");
+      Alert.alert("Erreur", getErrorMessage(error, "Les nouveaux pourcentages n'ont pas pu etre enregistres."));
     } finally {
       setIsSavingAllocation(false);
     }
@@ -269,7 +299,7 @@ export default function ReglagesScreen() {
       notifyBudgetUpdated();
     } catch (error) {
       console.error("Erreur de mise a jour du seuil d'alerte:", error);
-      Alert.alert("Erreur", "Le seuil d'alerte n'a pas pu etre enregistre.");
+      Alert.alert("Erreur", getErrorMessage(error, "Le seuil d'alerte n'a pas pu etre enregistre."));
     } finally {
       setIsSavingAlert(false);
     }
@@ -280,49 +310,43 @@ export default function ReglagesScreen() {
       return;
     }
 
-    Alert.alert(
-      `Cloturer ${currentMonth.label} ?`,
-      "Le mois sera archive et un nouveau mois vide sera prepare.",
-      [
-        { style: "cancel", text: "Annuler" },
-        {
-          style: "destructive",
-          text: "Cloturer",
-          onPress: () => {
-            void (async () => {
-              try {
-                setIsClosingMonth(true);
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setShowCloseMonthModal(true);
+  }, [currentMonth, loadData]);
 
-                await cloturerMois(currentMonth.id);
+  const handleConfirmCloseMonth = useCallback(async () => {
+    if (!currentMonth) {
+      return;
+    }
 
-                const currentMonthDate = new Date(currentMonth.date_debut);
-                const nextMonthDate = new Date(
-                  currentMonthDate.getFullYear(),
-                  currentMonthDate.getMonth() + 1,
-                  1
-                );
+    try {
+      setIsClosingMonth(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
-                await createMois({
-                  dateDebut: getMonthStart(nextMonthDate),
-                  label: getMonthLabel(nextMonthDate),
-                  salaire: 0,
-                  statut: "en_cours",
-                });
+      await cloturerMois(currentMonth.id);
 
-                notifyBudgetUpdated();
-                await loadData();
-              } catch (error) {
-                console.error("Erreur de cloture du mois:", error);
-                Alert.alert("Erreur", "Le mois n'a pas pu etre cloture.");
-              } finally {
-                setIsClosingMonth(false);
-              }
-            })();
-          },
-        },
-      ]
-    );
+      const currentMonthDate = new Date(currentMonth.date_debut);
+      const nextMonthDate = new Date(
+        currentMonthDate.getFullYear(),
+        currentMonthDate.getMonth() + 1,
+        1
+      );
+
+      await createMois({
+        dateDebut: getMonthStart(nextMonthDate),
+        label: getMonthLabel(nextMonthDate),
+        salaire: 0,
+        statut: "en_cours",
+      });
+
+      setShowCloseMonthModal(false);
+      notifyBudgetUpdated();
+      await loadData();
+    } catch (error) {
+      console.error("Erreur de cloture du mois:", error);
+      Alert.alert("Erreur", getErrorMessage(error, "Le mois n'a pas pu etre cloture."));
+    } finally {
+      setIsClosingMonth(false);
+    }
   }, [currentMonth, loadData]);
 
   if (isLoading) {
@@ -516,6 +540,117 @@ export default function ReglagesScreen() {
           Toutes vos donnees sont stockees localement sur votre telephone.
         </Text>
       </SettingsSection>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => {
+          if (!isClosingMonth) {
+            setShowCloseMonthModal(false);
+          }
+        }}
+        transparent
+        visible={showCloseMonthModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            onPress={() => {
+              if (!isClosingMonth) {
+                setShowCloseMonthModal(false);
+              }
+            }}
+            style={styles.modalBackdropPressable}
+          />
+
+          <View style={styles.bottomSheet}>
+            <Text style={styles.bottomSheetTitle}>Cloturer {currentMonth?.label}</Text>
+            <Text style={styles.bottomSheetSubtitle}>
+              Verifie une derniere fois le resume du mois avant archivage.
+            </Text>
+
+            <View style={styles.closeSummaryCard}>
+              <View style={styles.metricRow}>
+                <Text style={styles.rowLabel}>Salaire</Text>
+                <Text style={styles.rowValue}>{formatMontant(currentMonth?.salaire ?? 0)}</Text>
+              </View>
+              <RowSeparator />
+              <View style={styles.metricRow}>
+                <Text style={styles.rowLabel}>Depense ce mois</Text>
+                <Text style={styles.rowValue}>{formatMontant(currentMonthSpent)}</Text>
+              </View>
+              <RowSeparator />
+              <View style={styles.metricRow}>
+                <Text style={styles.rowLabel}>Nombre de depenses</Text>
+                <Text style={styles.rowValue}>{currentMonthExpenseCount}</Text>
+              </View>
+              <RowSeparator />
+              <View style={styles.metricRow}>
+                <Text style={styles.rowLabel}>Reste en fin de mois</Text>
+                <Text
+                  style={[
+                    styles.rowValue,
+                    currentMonthSaved >= 0 ? styles.successText : styles.dangerText,
+                  ]}
+                >
+                  {formatMontant(currentMonthSaved)}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.sheetSectionTitle}>Etat des enveloppes</Text>
+            <View style={styles.enveloppesWrap}>
+              {currentMonthEnveloppes.map((enveloppe) => (
+                <View key={enveloppe.id} style={styles.enveloppeSummaryCard}>
+                  <View style={styles.enveloppeSummaryHeader}>
+                    <View
+                      style={[
+                        styles.enveloppeDot,
+                        { backgroundColor: ENVELOPE_COLORS[enveloppe.type] },
+                      ]}
+                    />
+                    <Text style={styles.enveloppeSummaryTitle}>
+                      {ENVELOPE_LABELS[enveloppe.type]}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.enveloppeSummaryAmount,
+                      enveloppe.montant_restant <= 0 ? styles.dangerText : null,
+                    ]}
+                  >
+                    {formatMontant(enveloppe.montant_restant)}
+                  </Text>
+                  <Text style={styles.enveloppeSummaryMeta}>
+                    sur {formatMontant(enveloppe.montant_initial)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                disabled={isClosingMonth}
+                onPress={() => setShowCloseMonthModal(false)}
+                style={[styles.secondaryButton, isClosingMonth ? styles.primaryButtonDisabled : null]}
+              >
+                <Text style={styles.secondaryButtonText}>Annuler</Text>
+              </Pressable>
+
+              <Pressable
+                disabled={isClosingMonth}
+                onPress={() => {
+                  void handleConfirmCloseMonth();
+                }}
+                style={[styles.dangerButton, styles.modalDangerButton, isClosingMonth ? styles.primaryButtonDisabled : null]}
+              >
+                <Text style={styles.dangerButtonText}>
+                  {isClosingMonth ? "Cloture..." : "Confirmer la cloture"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -525,6 +660,31 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 14,
     lineHeight: 22,
+  },
+  bottomSheet: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "86%",
+    padding: 20,
+    paddingBottom: 28,
+  },
+  bottomSheetSubtitle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  bottomSheetTitle: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  closeSummaryCard: {
+    backgroundColor: COLORS.softPrimary,
+    borderRadius: 18,
+    padding: 16,
   },
   container: {
     backgroundColor: COLORS.background,
@@ -551,6 +711,45 @@ const styles = StyleSheet.create({
   dangerText: {
     color: COLORS.danger,
   },
+  enveloppeDot: {
+    borderRadius: 999,
+    height: 10,
+    width: 10,
+  },
+  enveloppeSummaryAmount: {
+    color: COLORS.primaryDark,
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 12,
+  },
+  enveloppeSummaryCard: {
+    backgroundColor: "#fafaff",
+    borderColor: "#ecebff",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    width: "48%",
+  },
+  enveloppeSummaryHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  enveloppeSummaryMeta: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  enveloppeSummaryTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  enveloppesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
   helperText: {
     color: COLORS.muted,
     fontSize: 13,
@@ -563,6 +762,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 22,
+  },
+  modalBackdrop: {
+    backgroundColor: "rgba(17, 24, 39, 0.22)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdropPressable: {
+    flex: 1,
+  },
+  modalDangerButton: {
+    flex: 1,
+    marginTop: 0,
   },
   pageTitle: {
     color: COLORS.text,
@@ -637,10 +853,32 @@ const styles = StyleSheet.create({
   sectionWrap: {
     marginBottom: 24,
   },
+  secondaryButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.softPrimary,
+    borderRadius: 16,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 54,
+    paddingHorizontal: 18,
+  },
+  secondaryButtonText: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   separator: {
     backgroundColor: "#eef0f5",
     height: 1,
     marginVertical: 14,
+  },
+  sheetSectionTitle: {
+    color: COLORS.primaryDark,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 12,
+    marginTop: 18,
+    textTransform: "uppercase",
   },
   sliderRow: {
     alignItems: "center",

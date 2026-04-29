@@ -132,6 +132,10 @@ function buildEnveloppesFromParametres(
   ];
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function DepenseScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const descriptionInputRef = useRef<TextInput>(null);
@@ -331,7 +335,7 @@ export default function DepenseScreen() {
       focusDescription();
     } catch (error) {
       console.error("Erreur de creation du mois depuis Depense:", error);
-      Alert.alert("Erreur", "Le mois courant n'a pas pu etre initialise.");
+      Alert.alert("Erreur", getErrorMessage(error, "Le mois courant n'a pas pu etre initialise."));
     } finally {
       setIsCreatingMonth(false);
     }
@@ -386,7 +390,7 @@ export default function DepenseScreen() {
     } catch (error) {
       console.error("Erreur d'enregistrement de la depense:", error);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Erreur", "La depense n'a pas pu etre enregistree.");
+      Alert.alert("Erreur", getErrorMessage(error, "La depense n'a pas pu etre enregistree."));
     } finally {
       setIsSaving(false);
     }

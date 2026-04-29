@@ -26,6 +26,7 @@ import {
   deleteDepense,
   getDepenses,
   getMois,
+  updateDepense,
   type Depense,
   type EnveloppeType,
   type Mois,
@@ -74,6 +75,27 @@ const SORT_OPTIONS = [
   { key: "highest", label: "Plus cher" },
   { key: "lowest", label: "Moins cher" },
 ] as const;
+
+const EXPENSE_CATEGORIES = [
+  "Nourriture",
+  "Transport",
+  "Logement",
+  "Sante",
+  "Communication",
+  "Vetements",
+  "Loisirs",
+  "Education",
+  "Epargne",
+  "Investissement",
+  "Autre",
+] as const;
+
+const ENVELOPE_OPTIONS: Array<{ key: EnveloppeType; label: string }> = [
+  { key: "charges", label: "Charges" },
+  { key: "epargne", label: "Epargne" },
+  { key: "investissement", label: "Investissement" },
+  { key: "urgence", label: "Urgence" },
+];
 
 type EnvelopeFilter = (typeof ENVELOPE_FILTERS)[number]["key"];
 type SortKey = (typeof SORT_OPTIONS)[number]["key"];
@@ -152,6 +174,10 @@ function buildCategorySummary(depenses: Depense[]): CategorySummaryItem[] {
       label,
       montant,
     }));
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function groupMonthsWithDepenses(mois: Mois[], depenses: Depense[]): MonthSectionData[] {
@@ -266,11 +292,13 @@ function MonthHistorySection({
   isCurrent,
   mois,
   onDelete,
+  onEdit,
 }: {
   depenses: Depense[];
   isCurrent: boolean;
   mois: Mois;
   onDelete: (depense: Depense) => void;
+  onEdit: (depense: Depense) => void;
 }) {
   const [expanded, setExpanded] = useState(isCurrent);
   const dateGroups = useMemo(() => buildDateGroups(depenses), [depenses]);
@@ -333,7 +361,7 @@ function MonthHistorySection({
       <SectionList
         contentContainerStyle={styles.innerSectionContent}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <DepenseItem depense={item} onDelete={onDelete} />}
+        renderItem={({ item }) => <DepenseItem depense={item} onDelete={onDelete} onPress={onEdit} />}
         renderSectionHeader={({ section: { title } }) => (
           <View style={styles.dateHeader}>
             <Text style={styles.dateHeaderText}>{title}</Text>
@@ -357,6 +385,12 @@ export default function HistoriqueScreen() {
   const [sortKey, setSortKey] = useState<SortKey>("recent");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showSortModal, setShowSortModal] = useState(false);
+  const [editingDepense, setEditingDepense] = useState<Depense | null>(null);
+  const [editDescription, setEditDescription] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState<string>("Nourriture");
+  const [editEnveloppe, setEditEnveloppe] = useState<EnveloppeType>("charges");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const loadData = useCallback(async () => {
     const [moisData, depensesData] = await Promise.all([getMois(), getDepenses()]);
@@ -462,6 +496,27 @@ export default function HistoriqueScreen() {
   );
 
   const selectedSortLabel = SORT_OPTIONS.find((item) => item.key === sortKey)?.label ?? "Plus recent";
+  const canSaveEdit = editDescription.trim().length > 0 && Number(editAmount) > 0 && !isSavingEdit;
+
+  const openEditModal = useCallback((depense: Depense) => {
+    setEditingDepense(depense);
+    setEditDescription(depense.description);
+    setEditAmount(String(Math.round(depense.montant)));
+    setEditCategory(depense.categorie);
+    setEditEnveloppe(depense.enveloppe_type);
+  }, []);
+
+  const closeEditModal = useCallback(() => {
+    if (isSavingEdit) {
+      return;
+    }
+
+    setEditingDepense(null);
+    setEditDescription("");
+    setEditAmount("");
+    setEditCategory("Nourriture");
+    setEditEnveloppe("charges");
+  }, [isSavingEdit]);
 
   const handleDelete = useCallback(
     (depense: Depense) => {
@@ -481,7 +536,7 @@ export default function HistoriqueScreen() {
                   await loadData();
                 } catch (error) {
                   console.error("Erreur de suppression de la depense:", error);
-                  Alert.alert("Erreur", "La depense n'a pas pu etre supprimee.");
+                  Alert.alert("Erreur", getErrorMessage(error, "La depense n'a pas pu etre supprimee."));
                 }
               })();
             },
@@ -491,6 +546,57 @@ export default function HistoriqueScreen() {
     },
     [loadData]
   );
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingDepense) {
+      return;
+    }
+
+    const montant = Number.parseInt(editAmount.replace(/[^\d]/g, ""), 10);
+
+    if (!editDescription.trim()) {
+      Alert.alert("Description manquante", "Ajoute une description pour retrouver la depense.");
+      return;
+    }
+
+    if (!montant || montant <= 0) {
+      Alert.alert("Montant invalide", "Entre un montant superieur a zero.");
+      return;
+    }
+
+    try {
+      setIsSavingEdit(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      await updateDepense({
+        categorie: editCategory,
+        date: editingDepense.date,
+        description: editDescription.trim(),
+        enveloppeType: editEnveloppe,
+        heure: editingDepense.heure,
+        id: editingDepense.id,
+        montant,
+      });
+
+      notifyBudgetUpdated();
+      await loadData();
+      closeEditModal();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Erreur de mise a jour de la depense:", error);
+      Alert.alert("Erreur", getErrorMessage(error, "La depense n'a pas pu etre modifiee."));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }, [
+    closeEditModal,
+    editAmount,
+    editCategory,
+    editDescription,
+    editEnveloppe,
+    editingDepense,
+    loadData,
+  ]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -534,6 +640,7 @@ export default function HistoriqueScreen() {
                 isCurrent
                 mois={currentSection.mois}
                 onDelete={handleDelete}
+                onEdit={openEditModal}
               />
             ) : (
               <EmptyState
@@ -549,6 +656,7 @@ export default function HistoriqueScreen() {
               isCurrent={false}
               mois={item.mois}
               onDelete={handleDelete}
+              onEdit={openEditModal}
             />
           )}
           showsVerticalScrollIndicator={false}
@@ -585,6 +693,110 @@ export default function HistoriqueScreen() {
                 );
               })}
             </View>
+          </View>
+        </Modal>
+
+        <Modal
+          animationType="slide"
+          onRequestClose={closeEditModal}
+          transparent
+          visible={Boolean(editingDepense)}
+        >
+          <View style={styles.modalBackdrop}>
+            <Pressable onPress={closeEditModal} style={styles.modalBackdropPressable} />
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+              <View style={styles.bottomSheet}>
+                <Text style={styles.bottomSheetTitle}>Modifier la depense</Text>
+
+                <Text style={styles.inputLabel}>Description</Text>
+                <TextInput
+                  onChangeText={setEditDescription}
+                  placeholder="Description"
+                  placeholderTextColor={COLORS.muted}
+                  style={styles.editInput}
+                  value={editDescription}
+                />
+
+                <Text style={styles.inputLabel}>Montant</Text>
+                <TextInput
+                  keyboardType="number-pad"
+                  onChangeText={(value) => setEditAmount(value.replace(/[^\d]/g, ""))}
+                  placeholder="Montant"
+                  placeholderTextColor={COLORS.muted}
+                  style={styles.editInput}
+                  value={editAmount}
+                />
+                <Text style={styles.editAmountPreview}>
+                  {formatMontant(Number.parseInt(editAmount || "0", 10) || 0)}
+                </Text>
+
+                <Text style={styles.inputLabel}>Categorie</Text>
+                <ScrollView
+                  contentContainerStyle={styles.modalChipsWrap}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                >
+                  {EXPENSE_CATEGORIES.map((category) => {
+                    const selected = editCategory === category;
+
+                    return (
+                      <Pressable
+                        key={category}
+                        onPress={() => {
+                          void Haptics.selectionAsync();
+                          setEditCategory(category);
+                        }}
+                        style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
+                      >
+                        <Text style={selected ? styles.filterChipTextSelected : styles.filterChipText}>
+                          {category}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                <Text style={styles.inputLabel}>Enveloppe</Text>
+                <View style={styles.enveloppeEditGrid}>
+                  {ENVELOPE_OPTIONS.map((option) => {
+                    const selected = editEnveloppe === option.key;
+
+                    return (
+                      <Pressable
+                        key={option.key}
+                        onPress={() => {
+                          void Haptics.selectionAsync();
+                          setEditEnveloppe(option.key);
+                        }}
+                        style={[styles.enveloppeEditChip, selected ? styles.enveloppeEditChipSelected : null]}
+                      >
+                        <Text style={selected ? styles.enveloppeEditChipTextSelected : styles.enveloppeEditChipText}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.modalActions}>
+                  <Pressable onPress={closeEditModal} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>Annuler</Text>
+                  </Pressable>
+
+                  <Pressable
+                    disabled={!canSaveEdit}
+                    onPress={() => {
+                      void handleSaveEdit();
+                    }}
+                    style={[styles.primaryActionButton, !canSaveEdit ? styles.primaryButtonDisabled : null]}
+                  >
+                    <Text style={styles.primaryButtonText}>
+                      {isSavingEdit ? "Enregistrement..." : "Enregistrer"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
           </View>
         </Modal>
 
@@ -684,6 +896,51 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  editAmountPreview: {
+    color: COLORS.primaryDark,
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 8,
+  },
+  editInput: {
+    backgroundColor: "#f8f7ff",
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: COLORS.text,
+    fontSize: 15,
+    minHeight: 50,
+    paddingHorizontal: 14,
+  },
+  enveloppeEditChip: {
+    alignItems: "center",
+    backgroundColor: COLORS.card,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    width: "48%",
+  },
+  enveloppeEditChipSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  enveloppeEditChipText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  enveloppeEditChipTextSelected: {
+    color: COLORS.card,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  enveloppeEditGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
   filterChip: {
     borderRadius: 999,
     paddingHorizontal: 14,
@@ -733,9 +990,26 @@ const styles = StyleSheet.create({
   innerSectionContent: {
     paddingTop: 8,
   },
+  inputLabel: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 8,
+    marginTop: 14,
+    textTransform: "uppercase",
+  },
   listContent: {
     padding: 20,
     paddingBottom: 120,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  modalChipsWrap: {
+    gap: 10,
+    paddingRight: 20,
   },
   modalBackdrop: {
     backgroundColor: "rgba(17, 24, 39, 0.22)",
@@ -780,6 +1054,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 14,
   },
+  primaryActionButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.45,
+  },
+  primaryButtonText: {
+    color: COLORS.card,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   searchBar: {
     alignItems: "center",
     backgroundColor: COLORS.card,
@@ -812,6 +1103,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   sheetOptionTextSelected: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  secondaryButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.softPrimary,
+    borderRadius: 16,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  secondaryButtonText: {
     color: COLORS.primary,
     fontSize: 15,
     fontWeight: "700",

@@ -91,6 +91,16 @@ export interface CreateDepenseInput {
   heure: string;
 }
 
+export interface UpdateDepenseInput {
+  id: number;
+  enveloppeType: EnveloppeType;
+  description: string;
+  montant: number;
+  categorie: string;
+  date: string;
+  heure: string;
+}
+
 export interface UpdateParametreInput {
   cle: ParametreCle;
   valeur: string;
@@ -103,6 +113,74 @@ const ENVELOPPE_LABELS: Record<EnveloppeType, string> = {
   investissement: "Investissement",
   urgence: "Urgence",
 };
+
+function getMonthKey(dateLike: string): string {
+  const date = new Date(dateLike);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${date.getFullYear()}-${month}`;
+}
+
+async function ensureSingleCurrentMonth(candidateMonthId?: number, db?: SQLiteDatabase): Promise<void> {
+  const database = db ?? (await getInitializedDb());
+  const currentMonths = await database.getAllAsync<Mois>(
+    `
+      SELECT *
+      FROM mois
+      WHERE statut = 'en_cours'
+      ORDER BY date_debut DESC, id DESC;
+    `
+  );
+
+  const conflictingMonth = currentMonths.find((item) => item.id !== candidateMonthId);
+
+  if (conflictingMonth) {
+    throw new Error(
+      `Un autre mois est deja ouvert (${conflictingMonth.label}). Cloture-le avant d'en ouvrir un nouveau.`
+    );
+  }
+}
+
+async function ensureMonthDoesNotAlreadyExist(
+  dateDebut: string,
+  candidateMonthId?: number,
+  db?: SQLiteDatabase
+): Promise<void> {
+  const database = db ?? (await getInitializedDb());
+  const targetMonthKey = getMonthKey(dateDebut);
+  const months = await database.getAllAsync<Mois>("SELECT * FROM mois;");
+  const duplicateMonth = months.find(
+    (item) => item.id !== candidateMonthId && getMonthKey(item.date_debut) === targetMonthKey
+  );
+
+  if (duplicateMonth) {
+    throw new Error(`Le mois ${duplicateMonth.label} existe deja dans l'archive.`);
+  }
+}
+
+async function requireOpenMoisById(id: number, db?: SQLiteDatabase): Promise<Mois> {
+  const mois = await requireMoisById(id, db);
+
+  if (mois.statut !== "en_cours") {
+    throw new Error(`Le mois ${mois.label} est deja cloture. Cette action n'est plus autorisee.`);
+  }
+
+  return mois;
+}
+
+async function requireEnveloppeForOpenMonth(
+  moisId: number,
+  enveloppeType: EnveloppeType,
+  db?: SQLiteDatabase
+): Promise<EnveloppeAvecSolde> {
+  await requireOpenMoisById(moisId, db);
+  const enveloppe = await getEnveloppeByMoisAndType(moisId, enveloppeType);
+
+  if (!enveloppe) {
+    throw new Error("Cette enveloppe n'existe pas encore pour le mois en cours.");
+  }
+
+  return enveloppe;
+}
 
 /** Compare une date ISO a une autre pour savoir si elles appartiennent au meme mois civil. */
 function isSameMonthForQuery(isoDate: string, referenceDate: Date): boolean {
@@ -209,6 +287,12 @@ export async function createMois(input: CreateMoisInput): Promise<Mois> {
   const statut = input.statut ?? "en_cours";
   const dateCloture = input.dateCloture ?? null;
 
+  await ensureMonthDoesNotAlreadyExist(input.dateDebut, undefined, db);
+
+  if (statut === "en_cours") {
+    await ensureSingleCurrentMonth(undefined, db);
+  }
+
   const result = await db.runAsync(
     `
       INSERT INTO mois (label, salaire, date_debut, date_cloture, statut)
@@ -256,6 +340,12 @@ export async function createMoisWithEnveloppes(
   const db = await getInitializedDb();
   let createdMoisId = 0;
 
+  await ensureMonthDoesNotAlreadyExist(input.dateDebut, undefined, db);
+
+  if ((input.statut ?? "en_cours") === "en_cours") {
+    await ensureSingleCurrentMonth(undefined, db);
+  }
+
   await db.withTransactionAsync(async () => {
     const result = await db.runAsync(
       `
@@ -296,6 +386,10 @@ export async function initializeMoisBudget(
   input: InitializeMoisBudgetInput
 ): Promise<{ mois: Mois; enveloppes: Enveloppe[] }> {
   const db = await getInitializedDb();
+  const targetMonth = await requireOpenMoisById(input.moisId, db);
+
+  await ensureMonthDoesNotAlreadyExist(targetMonth.date_debut, input.moisId, db);
+  await ensureSingleCurrentMonth(input.moisId, db);
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
@@ -393,7 +487,7 @@ export async function getEnveloppeByMoisAndType(
 /** Ajoute une depense dans le mois cible et retourne la ligne creee. */
 export async function addDepense(input: CreateDepenseInput): Promise<Depense> {
   const db = await getInitializedDb();
-  const previousEnvelope = await getEnveloppeByMoisAndType(input.moisId, input.enveloppeType);
+  const previousEnvelope = await requireEnveloppeForOpenMonth(input.moisId, input.enveloppeType, db);
 
   const result = await db.runAsync(
     `
@@ -437,6 +531,70 @@ export async function addDepense(input: CreateDepenseInput): Promise<Depense> {
     await scheduleInactivityReminder();
   } catch (error) {
     console.error("Erreur lors de l'envoi des notifications locales:", error);
+  }
+
+  return depense;
+}
+
+/** Met a jour une depense existante puis reevalue les notifications et soldes associes. */
+export async function updateDepense(input: UpdateDepenseInput): Promise<Depense> {
+  const db = await getInitializedDb();
+  const previousDepense = await requireDepenseById(input.id, db);
+  await requireOpenMoisById(previousDepense.mois_id, db);
+  const previousTargetEnvelope = await requireEnveloppeForOpenMonth(
+    previousDepense.mois_id,
+    input.enveloppeType,
+    db
+  );
+
+  await db.runAsync(
+    `
+      UPDATE depenses
+      SET enveloppe_type = ?,
+          description = ?,
+          montant = ?,
+          categorie = ?,
+          date = ?,
+          heure = ?
+      WHERE id = ?;
+    `,
+    input.enveloppeType,
+    input.description,
+    input.montant,
+    input.categorie,
+    input.date,
+    input.heure,
+    input.id
+  );
+
+  const depense = await requireDepenseById(input.id, db);
+
+  try {
+    const [updatedEnvelope, parametres] = await Promise.all([
+      getEnveloppeByMoisAndType(depense.mois_id, depense.enveloppe_type),
+      getParametresMap(),
+    ]);
+
+    if (updatedEnvelope) {
+      const seuilAlerte = Number.parseFloat(parametres.seuil_alerte) || 10;
+      const pourcentageRestant =
+        updatedEnvelope.montant_initial > 0
+          ? (updatedEnvelope.montant_restant / updatedEnvelope.montant_initial) * 100
+          : 0;
+
+      if (hasCrossedAlertThreshold(previousTargetEnvelope, updatedEnvelope, seuilAlerte)) {
+        await sendEnveloppeAlert(
+          ENVELOPPE_LABELS[updatedEnvelope.type],
+          updatedEnvelope.montant_restant,
+          pourcentageRestant
+        );
+      }
+    }
+
+    await cancelInactivityReminder();
+    await scheduleInactivityReminder();
+  } catch (error) {
+    console.error("Erreur lors de la mise a jour des notifications locales:", error);
   }
 
   return depense;
@@ -515,6 +673,8 @@ export async function getDepensesByMoisAndEnveloppe(
 /** Supprime une depense et indique si une ligne a effectivement ete retiree. */
 export async function deleteDepense(id: number): Promise<boolean> {
   const db = await getInitializedDb();
+  const depense = await requireDepenseById(id, db);
+  await requireOpenMoisById(depense.mois_id, db);
   const result = await db.runAsync("DELETE FROM depenses WHERE id = ?;", id);
 
   return result.changes > 0;
@@ -526,6 +686,11 @@ export async function cloturerMois(
   dateCloture: string = new Date().toISOString()
 ): Promise<Mois> {
   const db = await getInitializedDb();
+  const mois = await requireOpenMoisById(moisId, db);
+
+  if (mois.salaire <= 0) {
+    throw new Error("Impossible de cloturer un mois sans salaire defini.");
+  }
 
   await db.runAsync(
     `

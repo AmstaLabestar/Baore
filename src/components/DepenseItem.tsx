@@ -42,9 +42,10 @@ function getCategoryColor(category: string): string {
 interface DepenseItemProps {
   depense: Depense;
   onDelete: (depense: Depense) => void;
+  onPress?: (depense: Depense) => void;
 }
 
-export function DepenseItem({ depense, onDelete }: DepenseItemProps) {
+export function DepenseItem({ depense, onDelete, onPress }: DepenseItemProps) {
   const categoryColor = getCategoryColor(depense.categorie);
 
   return (
@@ -63,7 +64,10 @@ export function DepenseItem({ depense, onDelete }: DepenseItemProps) {
         </Pressable>
       )}
     >
-      <View style={styles.container}>
+      <Pressable
+        onPress={() => onPress?.(depense)}
+        style={({ pressed }) => [styles.container, pressed ? styles.containerPressed : null]}
+      >
         <View style={styles.left}>
           <View style={styles.titleRow}>
             <Text numberOfLines={1} style={styles.description}>
@@ -82,7 +86,7 @@ export function DepenseItem({ depense, onDelete }: DepenseItemProps) {
         </View>
 
         <Text style={styles.amount}>{formatMontant(depense.montant)}</Text>
-      </View>
+      </Pressable>
     </Swipeable>
   );
 }
@@ -112,6 +116,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 14,
     paddingVertical: 14,
+  },
+  containerPressed: {
+    opacity: 0.9,
   },
   deleteAction: {
     alignItems: "center",
