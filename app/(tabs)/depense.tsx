@@ -46,7 +46,7 @@ const COLORS = {
   muted: "#6b7280",
   border: "#e5e7eb",
   success: "#10b981",
-  softPrimary: "#eef2ff",
+  softPrimary: "#eef0f5",
 };
 
 const CATEGORIES = [

@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -267,7 +268,14 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.brandTitle}>Baore</Text>
+            <View style={styles.brandRow}>
+              <Image
+                resizeMode="contain"
+                source={require("../../assets/Baore.png")}
+                style={styles.brandLogo}
+              />
+              <Text style={styles.brandTitle}>Baore</Text>
+            </View>
             <Text style={styles.monthLabel}>{displayMonthLabel}</Text>
           </View>
 
@@ -419,11 +427,23 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 20,
   },
+  brandLogo: {
+    borderRadius: 12,
+    height: 38,
+    marginRight: 10,
+    width: 38,
+  },
+  brandRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    minWidth: 0,
+  },
   brandTitle: {
     color: COLORS.text,
-    fontSize: 28,
+    flexShrink: 1,
+    fontSize: 26,
     fontWeight: "700",
-    lineHeight: 34,
+    lineHeight: 32,
   },
   categoryAmount: {
     color: COLORS.text,

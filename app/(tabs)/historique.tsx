@@ -873,6 +873,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 18,
     fontWeight: "700",
+    lineHeight: 24,
     marginBottom: 14,
   },
   container: {
@@ -985,7 +986,9 @@ const styles = StyleSheet.create({
   },
   footerCard: {
     backgroundColor: COLORS.card,
+    borderColor: "#eef0f5",
     borderRadius: 18,
+    borderWidth: 1,
     marginTop: 8,
     padding: 18,
   },
@@ -993,11 +996,15 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 16,
     fontWeight: "700",
+    lineHeight: 22,
   },
   footerTitle: {
     color: COLORS.muted,
     fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
     marginBottom: 6,
+    textTransform: "uppercase",
   },
   innerSectionContent: {
     paddingTop: 8,
@@ -1034,7 +1041,9 @@ const styles = StyleSheet.create({
   monthHeaderCard: {
     alignItems: "center",
     backgroundColor: COLORS.card,
+    borderColor: "#eef0f5",
     borderRadius: 18,
+    borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     padding: 18,

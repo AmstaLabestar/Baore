@@ -96,7 +96,9 @@ const styles = StyleSheet.create({
     color: "#ef4444",
     fontSize: 16,
     fontWeight: "700",
+    lineHeight: 22,
     marginLeft: 12,
+    textAlign: "right",
   },
   categoryBadge: {
     borderRadius: 999,
@@ -110,7 +112,9 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     backgroundColor: "#ffffff",
+    borderColor: "#eef0f5",
     borderRadius: 16,
+    borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 8,
@@ -145,6 +149,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
+    lineHeight: 20,
     marginRight: 8,
   },
   left: {
@@ -153,10 +158,12 @@ const styles = StyleSheet.create({
   meta: {
     color: "#6b7280",
     fontSize: 13,
+    lineHeight: 18,
     marginTop: 6,
   },
   titleRow: {
     alignItems: "center",
     flexDirection: "row",
+    minWidth: 0,
   },
 });

@@ -734,11 +734,14 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 22,
     fontWeight: "700",
+    lineHeight: 28,
     marginBottom: 8,
   },
   closeSummaryCard: {
     backgroundColor: COLORS.softPrimary,
+    borderColor: "#dcd8ff",
     borderRadius: 18,
+    borderWidth: 1,
     padding: 16,
   },
   container: {
@@ -812,6 +815,7 @@ const styles = StyleSheet.create({
   helperText: {
     color: COLORS.muted,
     fontSize: 13,
+    lineHeight: 18,
     marginTop: 10,
   },
   loadingContainer: {
@@ -843,6 +847,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 28,
     fontWeight: "700",
+    lineHeight: 34,
     marginBottom: 18,
   },
   previewText: {
@@ -873,16 +878,20 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "500",
+    lineHeight: 20,
     marginRight: 12,
   },
   rowValue: {
     color: COLORS.primaryDark,
     fontSize: 15,
     fontWeight: "700",
+    lineHeight: 20,
   },
   sectionCard: {
     backgroundColor: COLORS.card,
+    borderColor: "#eef0f5",
     borderRadius: 20,
+    borderWidth: 1,
     padding: 18,
     shadowColor: "#111827",
     shadowOpacity: 0.08,
@@ -904,7 +913,7 @@ const styles = StyleSheet.create({
     color: COLORS.primaryDark,
     fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
     marginBottom: 10,
     paddingHorizontal: 4,
     textTransform: "uppercase",
@@ -951,6 +960,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 15,
     fontWeight: "600",
+    lineHeight: 20,
   },
   totalRow: {
     alignItems: "center",
