@@ -19,6 +19,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 
+import { AllocationPreview } from "@/components/AllocationPreview";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   addDepense,
@@ -33,35 +34,23 @@ import {
   type EnveloppeType,
   type Mois,
 } from "@/database/queries";
+import { expenseCategories, type ExpenseCategoryLabel } from "@/shared/budget-config";
 import { notifyBudgetUpdated } from "@/shared/services/budget-events";
+import { envelopeTheme, palette, radius, shadows } from "@/shared/theme";
 import { formatMontant } from "@/utils/formatters";
 
 const COLORS = {
-  primary: "#4f46e5",
-  primaryDark: "#1a1a2e",
-  background: "#f8f7ff",
-  backgroundSoft: "#f2f0ff",
-  card: "#ffffff",
-  text: "#1a1a2e",
-  muted: "#6b7280",
-  border: "#e5e7eb",
-  success: "#10b981",
-  softPrimary: "#eef0f5",
+  primary: palette.primary,
+  primaryDark: palette.primaryDark,
+  background: palette.background,
+  backgroundSoft: palette.primarySoft,
+  card: palette.backgroundElevated,
+  text: palette.text,
+  muted: palette.muted,
+  border: palette.border,
+  success: palette.success,
+  softPrimary: palette.mutedSoft,
 };
-
-const CATEGORIES = [
-  { icon: "\u{1F354}", label: "Nourriture" },
-  { icon: "\u{1F697}", label: "Transport" },
-  { icon: "\u{1F3E0}", label: "Logement" },
-  { icon: "\u{1F48A}", label: "Sante" },
-  { icon: "\u{1F4F1}", label: "Communication" },
-  { icon: "\u{1F455}", label: "Vetements" },
-  { icon: "\u{1F3AE}", label: "Loisirs" },
-  { icon: "\u{1F4DA}", label: "Education" },
-  { icon: "\u{1F4B0}", label: "Epargne" },
-  { icon: "\u{1F4C8}", label: "Investissement" },
-  { icon: "\u2728", label: "Autre" },
-] as const;
 
 const ENVELOPE_CONFIG: Record<
   EnveloppeType,
@@ -72,28 +61,28 @@ const ENVELOPE_CONFIG: Record<
   }
 > = {
   charges: {
-    color: "#3b82f6",
+    color: envelopeTheme.charges.color,
     icon: "home-outline",
-    label: "Charges",
+    label: envelopeTheme.charges.label,
   },
   epargne: {
-    color: "#10b981",
+    color: envelopeTheme.epargne.color,
     icon: "wallet-outline",
-    label: "Epargne",
+    label: envelopeTheme.epargne.label,
   },
   investissement: {
-    color: "#8b5cf6",
+    color: envelopeTheme.investissement.color,
     icon: "trending-up-outline",
-    label: "Investissement",
+    label: envelopeTheme.investissement.label,
   },
   urgence: {
-    color: "#f59e0b",
+    color: envelopeTheme.urgence.color,
     icon: "shield-checkmark-outline",
-    label: "Urgence",
+    label: envelopeTheme.urgence.label,
   },
 };
 
-type CategoryLabel = (typeof CATEGORIES)[number]["label"];
+type CategoryLabel = ExpenseCategoryLabel;
 type ParametresMap = Awaited<ReturnType<typeof getParametresMap>>;
 
 function getCurrentMonthLabel(date: Date): string {
@@ -162,6 +151,15 @@ export default function DepenseScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const parsedAmount = useMemo(() => parseAmountInput(amountInput), [amountInput]);
+  const salaryPreview = useMemo(() => {
+    const salaire = parseAmountInput(salaryInput);
+
+    if (salaire <= 0 || !parametres) {
+      return [];
+    }
+
+    return buildEnveloppesFromParametres(salaire, parametres);
+  }, [parametres, salaryInput]);
   const saveHint = useMemo(() => {
     if (!description.trim()) {
       return "Ajoute d'abord une description.";
@@ -451,6 +449,8 @@ export default function DepenseScreen() {
                 value={salaryInput}
               />
 
+              <AllocationPreview items={salaryPreview} />
+
               <Pressable
                 disabled={isCreatingMonth}
                 onPress={() => {
@@ -494,7 +494,10 @@ export default function DepenseScreen() {
                     {recentDescriptions.map((item) => (
                       <Pressable
                         key={item}
-                        onPress={() => setDescription(item)}
+                        onPress={() => {
+                          void Haptics.selectionAsync();
+                          setDescription(item);
+                        }}
                         style={({ pressed }) => [
                           styles.quickChip,
                           pressed ? styles.quickChipPressed : null,
@@ -535,13 +538,16 @@ export default function DepenseScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                 >
-                  {CATEGORIES.map((category) => {
+                  {expenseCategories.map((category) => {
                     const isSelected = selectedCategory === category.label;
 
                     return (
                       <Pressable
                         key={category.label}
-                        onPress={() => setSelectedCategory(category.label)}
+                        onPress={() => {
+                          void Haptics.selectionAsync();
+                          setSelectedCategory(category.label);
+                        }}
                         style={[
                           styles.categoryChip,
                           isSelected ? styles.categoryChipSelected : styles.categoryChipUnselected,
@@ -567,7 +573,10 @@ export default function DepenseScreen() {
                     return (
                       <Pressable
                         key={enveloppe.id}
-                        onPress={() => setSelectedEnveloppe(enveloppe.type)}
+                        onPress={() => {
+                          void Haptics.selectionAsync();
+                          setSelectedEnveloppe(enveloppe.type);
+                        }}
                         style={[
                           styles.envelopeButton,
                           isCompact ? styles.envelopeButtonCompact : null,
@@ -657,8 +666,8 @@ export default function DepenseScreen() {
 const styles = StyleSheet.create({
   amountField: {
     backgroundColor: COLORS.softPrimary,
-    borderColor: "#c7d2fe",
-    borderRadius: 14,
+    borderColor: palette.borderStrong,
+    borderRadius: radius.md,
     borderWidth: 1,
     color: COLORS.text,
     fontSize: 24,
@@ -680,7 +689,7 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   categoryChip: {
-    borderRadius: 999,
+    borderRadius: radius.round,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -698,7 +707,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   categoryChipUnselected: {
-    backgroundColor: "#eef0f5",
+    backgroundColor: palette.mutedSoft,
   },
   categoryScrollContent: {
     gap: 10,
@@ -714,7 +723,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   descriptionInput: {
-    borderBottomColor: "#d9dbf3",
+    borderBottomColor: palette.borderStrong,
     borderBottomWidth: 1,
     color: COLORS.text,
     fontSize: 18,
@@ -725,7 +734,7 @@ const styles = StyleSheet.create({
   envelopeButton: {
     backgroundColor: COLORS.card,
     borderColor: COLORS.border,
-    borderRadius: 16,
+    borderRadius: radius.md,
     borderWidth: 1,
     minHeight: 108,
     padding: 14,
@@ -799,7 +808,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
-    borderRadius: 16,
+    borderRadius: radius.md,
     justifyContent: "center",
     minHeight: 56,
     paddingHorizontal: 20,
@@ -817,7 +826,7 @@ const styles = StyleSheet.create({
   },
   quickChip: {
     backgroundColor: COLORS.softPrimary,
-    borderRadius: 999,
+    borderRadius: radius.round,
     maxWidth: "100%",
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -832,21 +841,16 @@ const styles = StyleSheet.create({
   },
   salaryCard: {
     backgroundColor: COLORS.card,
-    borderRadius: 20,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     padding: 20,
-    shadowColor: "#111827",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 4,
+    ...shadows.card,
   },
   salaryInput: {
     backgroundColor: COLORS.softPrimary,
-    borderColor: "#c7d2fe",
-    borderRadius: 14,
+    borderColor: palette.borderStrong,
+    borderRadius: radius.md,
     borderWidth: 1,
     color: COLORS.text,
     fontSize: 22,
@@ -857,7 +861,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: COLORS.success,
-    borderColor: "#059669",
+    borderColor: palette.success,
     borderWidth: 1,
     marginTop: 6,
     shadowColor: COLORS.success,
@@ -879,17 +883,12 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: COLORS.card,
-    borderRadius: 20,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     marginBottom: 16,
     padding: 18,
-    shadowColor: "#111827",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 4,
+    ...shadows.card,
   },
   sectionSubtitle: {
     color: COLORS.muted,
@@ -907,7 +906,7 @@ const styles = StyleSheet.create({
   stepBadge: {
     alignSelf: "flex-start",
     backgroundColor: COLORS.softPrimary,
-    borderRadius: 999,
+    borderRadius: radius.round,
     color: COLORS.primary,
     fontSize: 12,
     fontWeight: "700",
@@ -940,8 +939,8 @@ const styles = StyleSheet.create({
     right: 0,
   },
   stickyActionWrap: {
-    backgroundColor: "rgba(248, 247, 255, 0.98)",
-    borderTopColor: "#e9e7fb",
+    backgroundColor: "rgba(246, 247, 251, 0.98)",
+    borderTopColor: palette.border,
     borderTopWidth: 1,
     left: 0,
     paddingBottom: 20,

@@ -4,21 +4,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 
 import type { Depense, EnveloppeType } from "@/database/queries";
+import { categoryColors, palette, radius } from "@/shared/theme";
 import { formatMontant } from "@/utils/formatters";
-
-const CATEGORY_BADGE_COLORS: Record<string, string> = {
-  Autre: "#6b7280",
-  Communication: "#3b82f6",
-  Education: "#8b5cf6",
-  Epargne: "#10b981",
-  Investissement: "#7c3aed",
-  Logement: "#f59e0b",
-  Loisirs: "#ec4899",
-  Nourriture: "#ef4444",
-  Sante: "#10b981",
-  Transport: "#0ea5e9",
-  Vetements: "#6366f1",
-};
 
 function getEnvelopeLabel(type: EnveloppeType): string {
   switch (type) {
@@ -36,7 +23,7 @@ function getEnvelopeLabel(type: EnveloppeType): string {
 }
 
 function getCategoryColor(category: string): string {
-  return CATEGORY_BADGE_COLORS[category] ?? "#6b7280";
+  return categoryColors[category as keyof typeof categoryColors] ?? palette.muted;
 }
 
 interface DepenseItemProps {
@@ -59,7 +46,7 @@ export function DepenseItem({ depense, onDelete, onPress }: DepenseItemProps) {
           }}
           style={({ pressed }) => [styles.deleteAction, pressed ? styles.deleteActionPressed : null]}
         >
-          <Ionicons color="#ffffff" name="trash-outline" size={18} />
+          <Ionicons color={palette.white} name="trash-outline" size={18} />
           <Text style={styles.deleteActionText}>Supprimer</Text>
         </Pressable>
       )}
@@ -93,7 +80,7 @@ export function DepenseItem({ depense, onDelete, onPress }: DepenseItemProps) {
 
 const styles = StyleSheet.create({
   amount: {
-    color: "#ef4444",
+    color: palette.danger,
     fontSize: 16,
     fontWeight: "700",
     lineHeight: 22,
@@ -101,7 +88,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   categoryBadge: {
-    borderRadius: 999,
+    borderRadius: radius.round,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -111,9 +98,9 @@ const styles = StyleSheet.create({
   },
   container: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#eef0f5",
-    borderRadius: 16,
+    backgroundColor: palette.backgroundElevated,
+    borderColor: palette.border,
+    borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -126,8 +113,8 @@ const styles = StyleSheet.create({
   },
   deleteAction: {
     alignItems: "center",
-    backgroundColor: "#ef4444",
-    borderRadius: 16,
+    backgroundColor: palette.danger,
+    borderRadius: radius.md,
     flexDirection: "row",
     gap: 8,
     justifyContent: "center",
@@ -140,12 +127,12 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   deleteActionText: {
-    color: "#ffffff",
+    color: palette.white,
     fontSize: 13,
     fontWeight: "700",
   },
   description: {
-    color: "#1a1a2e",
+    color: palette.text,
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
@@ -156,7 +143,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   meta: {
-    color: "#6b7280",
+    color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
     marginTop: 6,

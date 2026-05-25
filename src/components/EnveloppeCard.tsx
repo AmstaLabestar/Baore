@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
 import type { EnveloppeType } from "@/database/queries";
+import { envelopeTheme, palette, radius, shadows, spacing } from "@/shared/theme";
 import { formatMontant, getPourcentage } from "@/utils/formatters";
 
 const ENVELOPE_CONFIG: Record<
@@ -15,19 +16,19 @@ const ENVELOPE_CONFIG: Record<
     lightColor: string;
   }
 > = {
-  charges: { color: "#3b82f6", icon: "home-outline", label: "Charges", lightColor: "#eff6ff" },
-  epargne: { color: "#10b981", icon: "wallet-outline", label: "Epargne", lightColor: "#ecfdf5" },
+  charges: { ...envelopeTheme.charges, icon: "home-outline", lightColor: envelopeTheme.charges.soft },
+  epargne: { ...envelopeTheme.epargne, icon: "wallet-outline", lightColor: envelopeTheme.epargne.soft },
   investissement: {
-    color: "#8b5cf6",
+    color: envelopeTheme.investissement.color,
     icon: "trending-up-outline",
-    label: "Investissement",
-    lightColor: "#f5f3ff",
+    label: envelopeTheme.investissement.label,
+    lightColor: envelopeTheme.investissement.soft,
   },
   urgence: {
-    color: "#f59e0b",
+    color: envelopeTheme.urgence.color,
     icon: "shield-checkmark-outline",
-    label: "Urgence",
-    lightColor: "#fff7ed",
+    label: envelopeTheme.urgence.label,
+    lightColor: envelopeTheme.urgence.soft,
   },
 };
 
@@ -79,20 +80,20 @@ export function EnveloppeCard({
 
   const backgroundColor =
     state === "empty"
-      ? "#fee2e2"
+      ? palette.dangerSoft
       : state === "danger"
-        ? "#fee2e2"
+        ? palette.dangerSoft
         : state === "warning"
-          ? "#fff7d6"
-          : "#ffffff";
+          ? palette.warningSoft
+          : palette.backgroundElevated;
   const textColor =
     state === "empty"
-      ? "#ef4444"
+      ? palette.danger
       : state === "danger"
-        ? "#ef4444"
+        ? palette.danger
         : state === "warning"
-          ? "#f59e0b"
-          : "#1a1a2e";
+          ? palette.warning
+          : palette.text;
 
   return (
     <View style={[styles.wrap, { width: cardWidth }]}>
@@ -110,7 +111,7 @@ export function EnveloppeCard({
         </View>
 
         <Text style={[styles.remaining, { color: textColor }]}>{formatMontant(montantRestant)}</Text>
-        <Text numberOfLines={2} style={[styles.initial, { color: state === "normal" ? "#6b7280" : textColor }]}>
+        <Text numberOfLines={2} style={[styles.initial, { color: state === "normal" ? palette.muted : textColor }]}>
           Initial: {formatMontant(montantInitial)} - {Math.round(pourcentage)}%
         </Text>
 
@@ -124,14 +125,12 @@ export function EnveloppeCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     minHeight: 156,
-    padding: 16,
-    shadowColor: "#111827",
-    shadowOffset: { height: 8, width: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    padding: spacing.md,
+    ...shadows.card,
   },
   fill: {
     borderRadius: 999,
@@ -140,12 +139,12 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   iconWrap: {
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: radius.sm,
     height: 32,
     justifyContent: "center",
     width: 32,

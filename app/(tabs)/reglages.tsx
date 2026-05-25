@@ -6,7 +6,6 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,21 +30,24 @@ import {
   type ParametreCle,
 } from "@/database/queries";
 import { exportBudgetBackup } from "@/services/backup";
+import { envelopeLabels } from "@/shared/budget-config";
+import { BottomSheet, Button } from "@/shared/components/ui";
 import { notifyBudgetUpdated, subscribeToBudgetUpdates } from "@/shared/services/budget-events";
+import { envelopeTheme, palette, radius, shadows } from "@/shared/theme";
 import { formatMontant } from "@/utils/formatters";
 
 const COLORS = {
-  primary: "#4f46e5",
-  primaryDark: "#1a1a2e",
-  background: "#f8f7ff",
-  card: "#ffffff",
-  text: "#1a1a2e",
-  muted: "#6b7280",
-  success: "#10b981",
-  danger: "#ef4444",
-  warning: "#f59e0b",
-  softPrimary: "#eef2ff",
-  softSuccess: "#dcfce7",
+  primary: palette.primary,
+  primaryDark: palette.primaryDark,
+  background: palette.background,
+  card: palette.backgroundElevated,
+  text: palette.text,
+  muted: palette.muted,
+  success: palette.success,
+  danger: palette.danger,
+  warning: palette.warning,
+  softPrimary: palette.primarySoft,
+  softSuccess: palette.successSoft,
 };
 
 type ParametresMap = Awaited<ReturnType<typeof getParametresMap>>;
@@ -57,18 +59,11 @@ interface AllocationState {
   pct_urgence: number;
 }
 
-const ENVELOPE_LABELS = {
-  charges: "Charges",
-  epargne: "Epargne",
-  investissement: "Investissement",
-  urgence: "Urgence",
-} as const;
-
 const ENVELOPE_COLORS = {
-  charges: "#3b82f6",
-  epargne: "#10b981",
-  investissement: "#8b5cf6",
-  urgence: "#f59e0b",
+  charges: envelopeTheme.charges.color,
+  epargne: envelopeTheme.epargne.color,
+  investissement: envelopeTheme.investissement.color,
+  urgence: envelopeTheme.urgence.color,
 } as const;
 
 function getMonthLabel(date: Date): string {
@@ -409,7 +404,7 @@ export default function ReglagesScreen() {
             </View>
 
             <Slider
-              maximumTrackTintColor="#d9dbf3"
+              maximumTrackTintColor={palette.borderStrong}
               maximumValue={100}
               minimumTrackTintColor={COLORS.primary}
               minimumValue={0}
@@ -461,7 +456,7 @@ export default function ReglagesScreen() {
           M'alerter quand il reste moins de {alertThreshold}% dans une enveloppe
         </Text>
         <Slider
-          maximumTrackTintColor="#f3e8cf"
+          maximumTrackTintColor={palette.warningSoft}
           maximumValue={40}
           minimumTrackTintColor={COLORS.warning}
           minimumValue={5}
@@ -590,28 +585,15 @@ export default function ReglagesScreen() {
         </Pressable>
       </SettingsSection>
 
-      <Modal
-        animationType="slide"
-        onRequestClose={() => {
+      <BottomSheet
+        onClose={() => {
           if (!isClosingMonth) {
             setShowCloseMonthModal(false);
           }
         }}
-        transparent
+        title={`Cloturer ${currentMonth?.label ?? ""}`}
         visible={showCloseMonthModal}
       >
-        <View style={styles.modalBackdrop}>
-          <Pressable
-            onPress={() => {
-              if (!isClosingMonth) {
-                setShowCloseMonthModal(false);
-              }
-            }}
-            style={styles.modalBackdropPressable}
-          />
-
-          <View style={styles.bottomSheet}>
-            <Text style={styles.bottomSheetTitle}>Cloturer {currentMonth?.label}</Text>
             <Text style={styles.bottomSheetSubtitle}>
               Verifie une derniere fois le resume du mois avant archivage.
             </Text>
@@ -663,7 +645,7 @@ export default function ReglagesScreen() {
                       ]}
                     />
                     <Text style={styles.enveloppeSummaryTitle}>
-                      {ENVELOPE_LABELS[enveloppe.type]}
+                      {envelopeLabels[enveloppe.type]}
                     </Text>
                   </View>
 
@@ -683,29 +665,27 @@ export default function ReglagesScreen() {
             </View>
 
             <View style={styles.modalActions}>
-              <Pressable
+              <Button
                 disabled={isClosingMonth}
                 onPress={() => setShowCloseMonthModal(false)}
-                style={[styles.secondaryButton, isClosingMonth ? styles.primaryButtonDisabled : null]}
+                style={styles.modalActionButton}
+                variant="secondary"
               >
-                <Text style={styles.secondaryButtonText}>Annuler</Text>
-              </Pressable>
+                Annuler
+              </Button>
 
-              <Pressable
+              <Button
                 disabled={isClosingMonth}
                 onPress={() => {
                   void handleConfirmCloseMonth();
                 }}
-                style={[styles.dangerButton, styles.modalDangerButton, isClosingMonth ? styles.primaryButtonDisabled : null]}
+                style={styles.modalActionButton}
+                variant="danger"
               >
-                <Text style={styles.dangerButtonText}>
-                  {isClosingMonth ? "Cloture..." : "Confirmer la cloture"}
-                </Text>
-              </Pressable>
+                {isClosingMonth ? "Cloture..." : "Confirmer la cloture"}
+              </Button>
             </View>
-          </View>
-        </View>
-      </Modal>
+      </BottomSheet>
     </ScrollView>
   );
 }
@@ -716,31 +696,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
-  bottomSheet: {
-    backgroundColor: COLORS.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "86%",
-    padding: 20,
-    paddingBottom: 28,
-  },
   bottomSheetSubtitle: {
     color: COLORS.muted,
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 16,
   },
-  bottomSheetTitle: {
-    color: COLORS.text,
-    fontSize: 22,
-    fontWeight: "700",
-    lineHeight: 28,
-    marginBottom: 8,
-  },
   closeSummaryCard: {
     backgroundColor: COLORS.softPrimary,
-    borderColor: "#dcd8ff",
-    borderRadius: 18,
+    borderColor: palette.borderStrong,
+    borderRadius: radius.lg,
     borderWidth: 1,
     padding: 16,
   },
@@ -755,7 +720,7 @@ const styles = StyleSheet.create({
   dangerButton: {
     alignItems: "center",
     backgroundColor: COLORS.danger,
-    borderRadius: 16,
+    borderRadius: radius.md,
     justifyContent: "center",
     marginTop: 18,
     minHeight: 54,
@@ -770,7 +735,7 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
   },
   enveloppeDot: {
-    borderRadius: 999,
+    borderRadius: radius.round,
     height: 10,
     width: 10,
   },
@@ -781,9 +746,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   enveloppeSummaryCard: {
-    backgroundColor: "#fafaff",
-    borderColor: "#ecebff",
-    borderRadius: 16,
+    backgroundColor: palette.background,
+    borderColor: palette.border,
+    borderRadius: radius.md,
     borderWidth: 1,
     padding: 14,
     width: "48%",
@@ -831,17 +796,8 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 22,
   },
-  modalBackdrop: {
-    backgroundColor: "rgba(17, 24, 39, 0.22)",
+  modalActionButton: {
     flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalBackdropPressable: {
-    flex: 1,
-  },
-  modalDangerButton: {
-    flex: 1,
-    marginTop: 0,
   },
   pageTitle: {
     color: COLORS.text,
@@ -859,7 +815,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
-    borderRadius: 16,
+    borderRadius: radius.md,
     justifyContent: "center",
     marginTop: 18,
     minHeight: 54,
@@ -889,18 +845,11 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: COLORS.card,
-    borderColor: "#eef0f5",
-    borderRadius: 20,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
     borderWidth: 1,
     padding: 18,
-    shadowColor: "#111827",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 4,
+    ...shadows.card,
   },
   sectionFooter: {
     color: COLORS.muted,
@@ -921,22 +870,8 @@ const styles = StyleSheet.create({
   sectionWrap: {
     marginBottom: 24,
   },
-  secondaryButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.softPrimary,
-    borderRadius: 16,
-    flex: 1,
-    justifyContent: "center",
-    minHeight: 54,
-    paddingHorizontal: 18,
-  },
-  secondaryButtonText: {
-    color: COLORS.primary,
-    fontSize: 15,
-    fontWeight: "700",
-  },
   separator: {
-    backgroundColor: "#eef0f5",
+    backgroundColor: palette.border,
     height: 1,
     marginVertical: 14,
   },
@@ -965,7 +900,7 @@ const styles = StyleSheet.create({
   totalRow: {
     alignItems: "center",
     backgroundColor: COLORS.softPrimary,
-    borderRadius: 14,
+    borderRadius: radius.md,
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 8,

@@ -1,6 +1,8 @@
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 
+import { palette, spacing } from "@/shared/theme";
+
 /** Ecran de chargement reutilisable pendant l'initialisation de Baore. */
 export function LoadingScreen() {
   return (
@@ -16,7 +18,7 @@ export function LoadingScreen() {
         <Text style={styles.subtitle}>On prepare ton espace budgetaire</Text>
       </View>
 
-      <ActivityIndicator color="#ffffff" size="small" />
+      <ActivityIndicator color={palette.white} size="small" />
     </View>
   );
 }
@@ -24,10 +26,10 @@ export function LoadingScreen() {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
-    backgroundColor: "#1a1a2e",
+    backgroundColor: palette.primaryDark,
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
   },
   logoImage: {
     height: 92,
@@ -39,13 +41,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   subtitle: {
-    color: "#c7cae8",
+    color: palette.borderStrong,
     fontSize: 14,
     marginTop: 6,
     textAlign: "center",
   },
   title: {
-    color: "#ffffff",
+    color: palette.white,
     fontSize: 28,
     fontWeight: "700",
   },

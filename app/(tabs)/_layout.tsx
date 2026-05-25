@@ -8,16 +8,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getEnveloppesByMois, getMoisEnCours, getParametresMap } from "@/database/queries";
 import { buildBudgetAlerts, countActiveBudgetAlerts } from "@/services/budget-alerts";
+import { palette, radius, shadows } from "@/shared/theme";
 import { subscribeToBudgetUpdates } from "@/shared/services/budget-events";
 
 const COLORS = {
-  primary: "#4f46e5",
-  primaryDark: "#1a1a2e",
-  background: "#f8f7ff",
-  card: "#ffffff",
-  text: "#1a1a2e",
-  muted: "#6b7280",
-  border: "#ecebff",
+  primary: palette.primary,
+  primaryDark: palette.primaryDark,
+  background: palette.background,
+  card: palette.backgroundElevated,
+  text: palette.text,
+  muted: palette.muted,
+  border: palette.border,
 };
 
 type AddTabButtonProps = Pick<
@@ -166,14 +167,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    elevation: 0,
-    shadowColor: "#111827",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
+    ...shadows.card,
   },
   tabBarItem: {
     justifyContent: "center",
@@ -188,22 +182,15 @@ const styles = StyleSheet.create({
   addButton: {
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: radius.round,
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 8,
+    ...shadows.floating,
   },
   badge: {
-    backgroundColor: "#ef4444",
-    color: "#ffffff",
+    backgroundColor: palette.danger,
+    color: palette.white,
     fontSize: 11,
     fontWeight: "700",
   },

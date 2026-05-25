@@ -7,7 +7,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
 } from "react-native";
 
 import { AlertBanner } from "@/components/AlertBanner";
+import { AllocationPreview } from "@/components/AllocationPreview";
 import { EmptyState } from "@/components/EmptyState";
 import { EnveloppeCard } from "@/components/EnveloppeCard";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -35,17 +35,19 @@ import {
   type Mois,
 } from "@/database/queries";
 import { buildBudgetAlerts } from "@/services/budget-alerts";
+import { Button, Card, SectionHeader } from "@/shared/components/ui";
 import { subscribeToBudgetUpdates } from "@/shared/services/budget-events";
+import { categoryColors, palette, radius, shadows } from "@/shared/theme";
 import { formatMois, formatMontant } from "@/utils/formatters";
 
 const COLORS = {
-  background: "#f8f7ff",
-  card: "#ffffff",
-  danger: "#ef4444",
-  muted: "#6b7280",
-  primary: "#4f46e5",
-  softIndigo: "#eef2ff",
-  text: "#1a1a2e",
+  background: palette.background,
+  card: palette.backgroundElevated,
+  danger: palette.danger,
+  muted: palette.muted,
+  primary: palette.primary,
+  softIndigo: palette.primarySoft,
+  text: palette.text,
 };
 
 type ParametresMap = Awaited<ReturnType<typeof getParametresMap>>;
@@ -57,7 +59,7 @@ interface CategorieResume {
   ratio: number;
 }
 
-const CATEGORY_COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6"];
+const CATEGORY_COLORS = Object.values(categoryColors);
 
 function getCurrentMonthLabel(date: Date): string {
   const formatted = new Intl.DateTimeFormat("fr-FR", {
@@ -144,6 +146,15 @@ export default function HomeScreen() {
     () => buildBudgetAlerts({ currentMonth, enveloppes, seuilAlerte }),
     [currentMonth, enveloppes, seuilAlerte]
   );
+  const salaryPreview = useMemo(() => {
+    const salaire = parseSalaryInput(salaryInput);
+
+    if (salaire <= 0 || !parametres) {
+      return [];
+    }
+
+    return buildEnveloppesFromParametres(salaire, parametres);
+  }, [parametres, salaryInput]);
 
   const loadData = useCallback(async () => {
     const appParametres = await getParametresMap();
@@ -294,7 +305,7 @@ export default function HomeScreen() {
         ) : null}
 
         {!currentMonth || currentMonth.salaire <= 0 ? (
-          <View style={styles.salaryInputCard}>
+          <Card style={styles.salaryInputCard}>
             <Text style={styles.sectionTitle}>Definir le salaire du mois</Text>
             <Text style={styles.sectionSubtitle}>
               Commence par enregistrer ton salaire pour repartir automatiquement le budget.
@@ -309,22 +320,17 @@ export default function HomeScreen() {
               value={salaryInput}
             />
 
-            <Pressable
+            <AllocationPreview items={salaryPreview} />
+
+            <Button
               disabled={isSubmittingSalary}
               onPress={() => {
                 void handleCreateSalary();
               }}
-              style={({ pressed }) => [
-                styles.salaryButton,
-                pressed && !isSubmittingSalary ? styles.salaryButtonPressed : null,
-                isSubmittingSalary ? styles.salaryButtonDisabled : null,
-              ]}
             >
-              <Text style={styles.salaryButtonText}>
-                {isSubmittingSalary ? "Enregistrement..." : "Definir mon salaire"}
-              </Text>
-            </Pressable>
-          </View>
+              {isSubmittingSalary ? "Enregistrement..." : "Definir mon salaire"}
+            </Button>
+          </Card>
         ) : (
           <>
             <MonthSummaryCard
@@ -338,24 +344,18 @@ export default function HomeScreen() {
               salaire={currentMonth.salaire}
             />
 
-            <Pressable
+            <Button
               onPress={() => {
                 void Haptics.selectionAsync();
                 router.push("/depense");
               }}
-              style={({ pressed }) => [
-                styles.quickActionButton,
-                pressed ? styles.salaryButtonPressed : null,
-              ]}
             >
-              <Text style={styles.quickActionButtonText}>Ajouter une depense</Text>
-            </Pressable>
+              Ajouter une depense
+            </Button>
           </>
         )}
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Enveloppes</Text>
-        </View>
+        <SectionHeader title="Enveloppes" subtitle="Suivi doux de tes limites du mois" />
 
         <View style={styles.envelopesGrid}>
           {enveloppes.map((envelope) => (
@@ -390,7 +390,7 @@ export default function HomeScreen() {
               title="Aucune depense ce mois"
             />
           ) : (
-            <View style={styles.categoryCard}>
+            <Card style={styles.categoryCard}>
               {categorySummary.map((category) => (
                 <View key={category.nom} style={styles.categoryRow}>
                   <View style={styles.categoryTopLine}>
@@ -414,7 +414,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
               ))}
-            </View>
+            </Card>
           )}
         </View>
       </ScrollView>
@@ -452,13 +452,9 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     backgroundColor: COLORS.card,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     padding: 18,
-    shadowColor: "#111827",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    ...shadows.card,
   },
   categoryDot: {
     borderRadius: 5,
@@ -535,43 +531,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "100%",
   },
-  salaryButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    borderRadius: 14,
-    justifyContent: "center",
-    minHeight: 52,
-    paddingHorizontal: 18,
-  },
-  salaryButtonDisabled: {
-    opacity: 0.6,
-  },
-  salaryButtonPressed: {
-    transform: [{ scale: 0.99 }],
-  },
-  salaryButtonText: {
-    color: COLORS.card,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  quickActionButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    borderRadius: 14,
-    justifyContent: "center",
-    marginBottom: 24,
-    minHeight: 52,
-    paddingHorizontal: 18,
-  },
-  quickActionButtonText: {
-    color: COLORS.card,
-    fontSize: 15,
-    fontWeight: "700",
-  },
   salaryInput: {
     backgroundColor: COLORS.softIndigo,
-    borderColor: "#c7d2fe",
-    borderRadius: 14,
+    borderColor: palette.borderStrong,
+    borderRadius: radius.md,
     borderWidth: 1,
     color: COLORS.text,
     fontSize: 20,
@@ -581,16 +544,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   salaryInputCard: {
-    backgroundColor: COLORS.card,
     borderColor: COLORS.primary,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     borderStyle: "dashed",
     borderWidth: 2,
     marginBottom: 24,
-    padding: 20,
-  },
-  sectionHeader: {
-    marginBottom: 12,
   },
   sectionSubtitle: {
     color: COLORS.muted,

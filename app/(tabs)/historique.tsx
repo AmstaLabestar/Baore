@@ -7,7 +7,6 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -32,20 +31,23 @@ import {
   type EnveloppeType,
   type Mois,
 } from "@/database/queries";
+import { BottomSheet, Button, Chip } from "@/shared/components/ui";
+import { envelopeOptions, expenseCategories } from "@/shared/budget-config";
 import { notifyBudgetUpdated, subscribeToBudgetUpdates } from "@/shared/services/budget-events";
-import { formatDate, formatMontant, formatMois, getPourcentage } from "@/utils/formatters";
+import { categoryColors, palette, radius, shadows } from "@/shared/theme";
+import { formatDate, formatMontant, formatMois } from "@/utils/formatters";
 
 const COLORS = {
-  background: "#f8f7ff",
-  border: "#e5e7eb",
-  card: "#ffffff",
-  muted: "#6b7280",
-  primary: "#4f46e5",
-  primaryDark: "#1a1a2e",
-  softPrimary: "#eef2ff",
-  softSuccess: "#dcfce7",
-  success: "#10b981",
-  text: "#1a1a2e",
+  background: palette.background,
+  border: palette.border,
+  card: palette.backgroundElevated,
+  muted: palette.muted,
+  primary: palette.primary,
+  primaryDark: palette.primaryDark,
+  softPrimary: palette.primarySoft,
+  softSuccess: palette.successSoft,
+  success: palette.success,
+  text: palette.text,
 };
 
 const ENVELOPE_FILTERS: Array<{ key: "tous" | EnveloppeType; label: string }> = [
@@ -56,47 +58,12 @@ const ENVELOPE_FILTERS: Array<{ key: "tous" | EnveloppeType; label: string }> = 
   { key: "urgence", label: "Urgence" },
 ];
 
-const CATEGORY_BADGE_COLORS: Record<string, string> = {
-  Autre: "#6b7280",
-  Communication: "#3b82f6",
-  Education: "#8b5cf6",
-  Epargne: "#10b981",
-  Investissement: "#7c3aed",
-  Logement: "#f59e0b",
-  Loisirs: "#ec4899",
-  Nourriture: "#ef4444",
-  Sante: "#10b981",
-  Transport: "#0ea5e9",
-  Vetements: "#6366f1",
-};
-
 const SORT_OPTIONS = [
   { key: "recent", label: "Plus recent" },
   { key: "oldest", label: "Plus ancien" },
   { key: "highest", label: "Plus cher" },
   { key: "lowest", label: "Moins cher" },
 ] as const;
-
-const EXPENSE_CATEGORIES = [
-  "Nourriture",
-  "Transport",
-  "Logement",
-  "Sante",
-  "Communication",
-  "Vetements",
-  "Loisirs",
-  "Education",
-  "Epargne",
-  "Investissement",
-  "Autre",
-] as const;
-
-const ENVELOPE_OPTIONS: Array<{ key: EnveloppeType; label: string }> = [
-  { key: "charges", label: "Charges" },
-  { key: "epargne", label: "Epargne" },
-  { key: "investissement", label: "Investissement" },
-  { key: "urgence", label: "Urgence" },
-];
 
 type EnvelopeFilter = (typeof ENVELOPE_FILTERS)[number]["key"];
 type SortKey = (typeof SORT_OPTIONS)[number]["key"];
@@ -142,7 +109,7 @@ function getEnvelopeLabel(type: EnveloppeType): string {
 }
 
 function getCategoryColor(category: string): string {
-  return CATEGORY_BADGE_COLORS[category] ?? "#6b7280";
+  return categoryColors[category as keyof typeof categoryColors] ?? palette.muted;
 }
 
 function buildDateGroups(depenses: Depense[]): DateGroup[] {
@@ -665,51 +632,39 @@ export default function HistoriqueScreen() {
           showsVerticalScrollIndicator={false}
         />
 
-        <Modal
-          animationType="slide"
-          onRequestClose={() => setShowCategoryModal(false)}
-          transparent
+        <BottomSheet
+          onClose={() => setShowCategoryModal(false)}
+          title="Filtrer par categorie"
           visible={showCategoryModal}
         >
-          <View style={styles.modalBackdrop}>
-            <Pressable onPress={() => setShowCategoryModal(false)} style={styles.modalBackdropPressable} />
-            <View style={styles.bottomSheet}>
-              <Text style={styles.bottomSheetTitle}>Filtrer par categorie</Text>
-              {categoryOptions.map((option) => {
-                const isAll = option === "Toutes les categories";
-                const selected = isAll ? selectedCategory === null : selectedCategory === option;
+          {categoryOptions.map((option) => {
+            const isAll = option === "Toutes les categories";
+            const selected = isAll ? selectedCategory === null : selectedCategory === option;
 
-                return (
-                  <Pressable
-                    key={option}
-                    onPress={() => {
-                      void Haptics.selectionAsync();
-                      setSelectedCategory(isAll ? null : option);
-                      setShowCategoryModal(false);
-                    }}
-                    style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
-                  >
-                    <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
-                      {option}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </Modal>
+            return (
+              <Pressable
+                key={option}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setSelectedCategory(isAll ? null : option);
+                  setShowCategoryModal(false);
+                }}
+                style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
+              >
+                <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
+                  {option}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </BottomSheet>
 
-        <Modal
-          animationType="slide"
-          onRequestClose={closeEditModal}
-          transparent
+        <BottomSheet
+          keyboardAvoiding
+          onClose={closeEditModal}
+          title="Modifier la depense"
           visible={Boolean(editingDepense)}
         >
-          <View style={styles.modalBackdrop}>
-            <Pressable onPress={closeEditModal} style={styles.modalBackdropPressable} />
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-              <View style={styles.bottomSheet}>
-                <Text style={styles.bottomSheetTitle}>Modifier la depense</Text>
 
                 <Text style={styles.inputLabel}>Description</Text>
                 <TextInput
@@ -739,29 +694,26 @@ export default function HistoriqueScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                 >
-                  {EXPENSE_CATEGORIES.map((category) => {
-                    const selected = editCategory === category;
+                  {expenseCategories.map((category) => {
+                    const selected = editCategory === category.label;
 
                     return (
-                      <Pressable
-                        key={category}
+                      <Chip
+                        key={category.label}
                         onPress={() => {
-                          void Haptics.selectionAsync();
-                          setEditCategory(category);
+                          setEditCategory(category.label);
                         }}
-                        style={[styles.filterChip, selected ? styles.filterChipSelected : null]}
+                        selected={selected}
                       >
-                        <Text style={selected ? styles.filterChipTextSelected : styles.filterChipText}>
-                          {category}
-                        </Text>
-                      </Pressable>
+                        {category.label}
+                      </Chip>
                     );
                   })}
                 </ScrollView>
 
                 <Text style={styles.inputLabel}>Enveloppe</Text>
                 <View style={styles.enveloppeEditGrid}>
-                  {ENVELOPE_OPTIONS.map((option) => {
+                  {envelopeOptions.map((option) => {
                     const selected = editEnveloppe === option.key;
 
                     return (
@@ -786,59 +738,43 @@ export default function HistoriqueScreen() {
                 </View>
 
                 <View style={styles.modalActions}>
-                  <Pressable onPress={closeEditModal} style={styles.secondaryButton}>
-                    <Text style={styles.secondaryButtonText}>Annuler</Text>
-                  </Pressable>
+                  <Button onPress={closeEditModal} style={styles.modalActionButton} variant="secondary">
+                    Annuler
+                  </Button>
 
-                  <Pressable
+                  <Button
                     disabled={!canSaveEdit}
                     onPress={() => {
                       void handleSaveEdit();
                     }}
-                    style={[styles.primaryActionButton, !canSaveEdit ? styles.primaryButtonDisabled : null]}
+                    style={styles.modalActionButton}
                   >
-                    <Text style={styles.primaryButtonText}>
-                      {isSavingEdit ? "Enregistrement..." : "Enregistrer"}
-                    </Text>
-                  </Pressable>
+                    {isSavingEdit ? "Enregistrement..." : "Enregistrer"}
+                  </Button>
                 </View>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </Modal>
+        </BottomSheet>
 
-        <Modal
-          animationType="slide"
-          onRequestClose={() => setShowSortModal(false)}
-          transparent
-          visible={showSortModal}
-        >
-          <View style={styles.modalBackdrop}>
-            <Pressable onPress={() => setShowSortModal(false)} style={styles.modalBackdropPressable} />
-            <View style={styles.bottomSheet}>
-              <Text style={styles.bottomSheetTitle}>Trier</Text>
-              {SORT_OPTIONS.map((option) => {
-                const selected = sortKey === option.key;
+        <BottomSheet onClose={() => setShowSortModal(false)} title="Trier" visible={showSortModal}>
+          {SORT_OPTIONS.map((option) => {
+            const selected = sortKey === option.key;
 
-                return (
-                  <Pressable
-                    key={option.key}
-                    onPress={() => {
-                      void Haptics.selectionAsync();
-                      setSortKey(option.key);
-                      setShowSortModal(false);
-                    }}
-                    style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
-                  >
-                    <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </Modal>
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setSortKey(option.key);
+                  setShowSortModal(false);
+                }}
+                style={[styles.sheetOption, selected ? styles.sheetOptionSelected : null]}
+              >
+                <Text style={selected ? styles.sheetOptionTextSelected : styles.sheetOptionText}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </BottomSheet>
       </View>
     </KeyboardAvoidingView>
   );
@@ -861,21 +797,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  bottomSheet: {
-    backgroundColor: COLORS.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "88%",
-    padding: 20,
-    paddingBottom: 28,
-  },
-  bottomSheetTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 24,
-    marginBottom: 14,
-  },
   container: {
     backgroundColor: COLORS.background,
     flex: 1,
@@ -892,7 +813,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   currentMonthCard: {
-    borderColor: "#d5f5e5",
+    borderColor: palette.successSoft,
     borderWidth: 1,
   },
   dateHeader: {
@@ -912,9 +833,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   editInput: {
-    backgroundColor: "#f8f7ff",
+    backgroundColor: palette.background,
     borderColor: COLORS.border,
-    borderRadius: 14,
+    borderRadius: radius.md,
     borderWidth: 1,
     color: COLORS.text,
     fontSize: 15,
@@ -926,7 +847,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.card,
     borderColor: COLORS.border,
-    borderRadius: 14,
+    borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -955,7 +876,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   filterChip: {
-    borderRadius: 999,
+    borderRadius: radius.round,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -978,7 +899,7 @@ const styles = StyleSheet.create({
   },
   fixedHeader: {
     backgroundColor: COLORS.background,
-    borderBottomColor: "#ecebff",
+    borderBottomColor: palette.border,
     borderBottomWidth: 1,
     paddingBottom: 14,
     paddingHorizontal: 20,
@@ -986,11 +907,12 @@ const styles = StyleSheet.create({
   },
   footerCard: {
     backgroundColor: COLORS.card,
-    borderColor: "#eef0f5",
-    borderRadius: 18,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
     borderWidth: 1,
     marginTop: 8,
     padding: 18,
+    ...shadows.card,
   },
   footerMeta: {
     color: COLORS.text,
@@ -1026,27 +948,23 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 20,
   },
+  modalActionButton: {
+    flex: 1,
+  },
   modalChipsWrap: {
     gap: 10,
     paddingRight: 20,
   },
-  modalBackdrop: {
-    backgroundColor: "rgba(17, 24, 39, 0.22)",
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalBackdropPressable: {
-    flex: 1,
-  },
   monthHeaderCard: {
     alignItems: "center",
     backgroundColor: COLORS.card,
-    borderColor: "#eef0f5",
-    borderRadius: 18,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     padding: 18,
+    ...shadows.card,
   },
   monthHeaderMain: {
     flex: 1,
@@ -1081,28 +999,11 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     marginBottom: 14,
   },
-  primaryActionButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    flex: 1,
-    justifyContent: "center",
-    minHeight: 52,
-    paddingHorizontal: 16,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.45,
-  },
-  primaryButtonText: {
-    color: COLORS.card,
-    fontSize: 15,
-    fontWeight: "700",
-  },
   searchBar: {
     alignItems: "center",
     backgroundColor: COLORS.card,
     borderColor: COLORS.border,
-    borderRadius: 16,
+    borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: "row",
     gap: 10,
@@ -1118,7 +1019,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   sheetOption: {
-    borderRadius: 14,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -1131,20 +1032,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   sheetOptionTextSelected: {
-    color: COLORS.primary,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  secondaryButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.softPrimary,
-    borderRadius: 16,
-    flex: 1,
-    justifyContent: "center",
-    minHeight: 52,
-    paddingHorizontal: 16,
-  },
-  secondaryButtonText: {
     color: COLORS.primary,
     fontSize: 15,
     fontWeight: "700",

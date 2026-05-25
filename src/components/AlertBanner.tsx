@@ -1,22 +1,23 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import type { BudgetAlertTone } from "@/services/budget-alerts";
+import { palette, radius, spacing, typography } from "@/shared/theme";
 
 const TONE_STYLES: Record<
   BudgetAlertTone,
   { backgroundColor: string; textColor: string }
 > = {
   danger: {
-    backgroundColor: "#fee2e2",
-    textColor: "#ef4444",
+    backgroundColor: palette.dangerSoft,
+    textColor: palette.danger,
   },
   success: {
-    backgroundColor: "#dcfce7",
-    textColor: "#10b981",
+    backgroundColor: palette.successSoft,
+    textColor: palette.success,
   },
   warning: {
-    backgroundColor: "#fff7d6",
-    textColor: "#f59e0b",
+    backgroundColor: palette.warningSoft,
+    textColor: palette.warning,
   },
 };
 
@@ -41,19 +42,19 @@ export function AlertBanner({ icon, message, tone }: AlertBannerProps) {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
-    borderRadius: 16,
+    borderRadius: radius.md,
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   icon: {
     fontSize: 18,
   },
   message: {
     flex: 1,
-    fontSize: 14,
+    fontSize: typography.body.fontSize,
     fontWeight: "600",
-    lineHeight: 20,
+    lineHeight: typography.body.lineHeight,
   },
 });

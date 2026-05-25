@@ -1,5 +1,7 @@
-import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
+import { palette, radius, shadows, spacing } from "@/shared/theme";
 import { formatMontant, getPourcentage } from "@/utils/formatters";
 
 interface MonthCategoryBar {
@@ -23,8 +25,24 @@ export function MonthSummaryCard({
 }: MonthSummaryCardProps) {
   const { width } = useWindowDimensions();
   const isCompact = width < 390;
+  const progressAnimation = useRef(new Animated.Value(0)).current;
   const topCategories = categories.slice(0, 4);
   const totalCategories = topCategories.reduce((sum, item) => sum + item.montant, 0);
+  const spentPercent = getPourcentage(depense, salaire);
+
+  useEffect(() => {
+    progressAnimation.setValue(0);
+    Animated.timing(progressAnimation, {
+      duration: 680,
+      toValue: 1,
+      useNativeDriver: false,
+    }).start();
+  }, [depense, progressAnimation, salaire]);
+
+  const mainProgressWidth = progressAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", `${spentPercent}%`],
+  });
 
   return (
     <View style={styles.card}>
@@ -44,7 +62,7 @@ export function MonthSummaryCard({
       </View>
 
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${getPourcentage(depense, salaire)}%` }]} />
+        <Animated.View style={[styles.progressFill, { width: mainProgressWidth }]} />
       </View>
 
       {topCategories.length > 0 ? (
@@ -67,12 +85,18 @@ export function MonthSummaryCard({
               </View>
 
               <View style={styles.categoryTrack}>
-                <View
+                <Animated.View
                   style={[
                     styles.categoryFill,
                     {
                       backgroundColor: category.color,
-                      width: `${Math.max(8, getPourcentage(category.montant, totalCategories || 1))}%`,
+                      width: progressAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [
+                          "0%",
+                          `${Math.max(8, getPourcentage(category.montant, totalCategories || 1))}%`,
+                        ],
+                      }),
                     },
                   ]}
                 />
@@ -87,21 +111,19 @@ export function MonthSummaryCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    marginBottom: 24,
-    padding: 20,
-    shadowColor: "#111827",
-    shadowOffset: { height: 8, width: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    backgroundColor: palette.backgroundElevated,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.xl,
+    padding: spacing.lg,
+    ...shadows.card,
   },
   categoriesWrap: {
     marginTop: 18,
   },
   categoryAmount: {
-    color: "#1a1a2e",
+    color: palette.text,
     flexShrink: 1,
     fontSize: 13,
     fontWeight: "700",
@@ -125,7 +147,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryLabel: {
-    color: "#1a1a2e",
+    color: palette.text,
     flexShrink: 1,
     fontSize: 13,
     fontWeight: "600",
@@ -141,44 +163,44 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   categoryTrack: {
-    backgroundColor: "#eef2ff",
+    backgroundColor: palette.primarySoft,
     borderRadius: 999,
     height: 8,
     overflow: "hidden",
   },
   label: {
-    color: "#6b7280",
+    color: palette.muted,
     fontSize: 14,
     marginBottom: 6,
   },
   metaLabel: {
-    color: "#6b7280",
+    color: palette.muted,
     fontSize: 12,
     marginBottom: 2,
   },
   metaValue: {
-    color: "#1a1a2e",
+    color: palette.text,
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 18,
   },
   progressFill: {
-    backgroundColor: "#4f46e5",
+    backgroundColor: palette.primary,
     borderRadius: 999,
     height: "100%",
   },
   progressTrack: {
-    backgroundColor: "#ebe9ff",
+    backgroundColor: palette.primarySoft,
     borderRadius: 999,
     height: 8,
     marginTop: 16,
     overflow: "hidden",
   },
   restantNegative: {
-    color: "#ef4444",
+    color: palette.danger,
   },
   restantPositive: {
-    color: "#10b981",
+    color: palette.success,
   },
   rightStats: {
     alignItems: "flex-end",
@@ -191,13 +213,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   salary: {
-    color: "#1a1a2e",
+    color: palette.text,
     fontSize: 24,
     fontWeight: "700",
     lineHeight: 30,
   },
   sectionLabel: {
-    color: "#6b7280",
+    color: palette.muted,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.2,
