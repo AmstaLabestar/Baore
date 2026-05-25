@@ -17,6 +17,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.amstalabestar.baore",
       "adaptiveIcon": {
         "foregroundImage": "./assets/Baore.png",
         "backgroundColor": "#ffffff"
@@ -31,6 +32,13 @@
       "expo-router",
       "expo-sqlite",
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2ecc26ea-75a9-48f2-abdc-22aa3cec6beb"
+      }
+    },
+    "owner": "bikienga_hamza"
   }
 }
