@@ -2,7 +2,7 @@ import Slider from "@react-native-community/slider";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -154,6 +154,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 export default function ReglagesScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 390;
+  const router = useRouter();
   const [allocation, setAllocation] = useState<AllocationState>({
     pct_charges: 50,
     pct_epargne: 20,
@@ -341,13 +342,15 @@ export default function ReglagesScreen() {
       setShowCloseMonthModal(false);
       notifyBudgetUpdated();
       await loadData();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push("/");
     } catch (error) {
       console.error("Erreur de cloture du mois:", error);
       Alert.alert("Erreur", getErrorMessage(error, "Le mois n'a pas pu etre cloture."));
     } finally {
       setIsClosingMonth(false);
     }
-  }, [currentMonth, loadData]);
+  }, [currentMonth, loadData, router]);
 
   const handleExportBackup = useCallback(async () => {
     try {
@@ -506,15 +509,21 @@ export default function ReglagesScreen() {
               </Text>
             </View>
 
-            <Pressable
-              disabled={isClosingMonth}
-              onPress={closeCurrentMonth}
-              style={[styles.dangerButton, isClosingMonth ? styles.primaryButtonDisabled : null]}
-            >
-              <Text style={styles.dangerButtonText}>
-                {isClosingMonth ? "Cloture..." : `Cloturer le mois de ${currentMonth.label}`}
+            {currentMonth.salaire > 0 ? (
+              <Pressable
+                disabled={isClosingMonth}
+                onPress={closeCurrentMonth}
+                style={[styles.dangerButton, isClosingMonth ? styles.primaryButtonDisabled : null]}
+              >
+                <Text style={styles.dangerButtonText}>
+                  {isClosingMonth ? "Cloture..." : `Cloturer le mois de ${currentMonth.label}`}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.helperText}>
+                Definis d'abord le salaire du nouveau mois depuis l'accueil pour activer son suivi.
               </Text>
-            </Pressable>
+            )}
           </>
         ) : (
           <Text style={styles.helperText}>Aucun mois en cours pour le moment.</Text>

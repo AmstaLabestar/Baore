@@ -170,6 +170,7 @@ interface BottomSheetProps {
   children: ReactNode;
   keyboardAvoiding?: boolean;
   onClose: () => void;
+  scrollable?: boolean;
   title?: string;
   visible: boolean;
 }
@@ -178,13 +179,23 @@ export function BottomSheet({
   children,
   keyboardAvoiding = false,
   onClose,
+  scrollable = true,
   title,
   visible,
 }: BottomSheetProps) {
   const content = (
     <Animated.View entering={FadeInDown.duration(240)} style={styles.bottomSheet}>
       {title ? <Text style={styles.bottomSheetTitle}>{title}</Text> : null}
-      {children}
+      {scrollable ? (
+        <ScrollView
+          contentContainerStyle={styles.bottomSheetScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      ) : (
+        children
+      )}
     </Animated.View>
   );
 
@@ -219,6 +230,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: typography.title.lineHeight,
     marginBottom: spacing.md,
+  },
+  bottomSheetScrollContent: {
+    paddingBottom: spacing.xs,
   },
   amountPill: {
     backgroundColor: palette.mutedSoft,
