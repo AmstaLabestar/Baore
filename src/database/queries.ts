@@ -6,11 +6,13 @@ import {
   sendEnveloppeAlert,
 } from "@/services/notifications";
 
+import type { EnveloppeType } from "@/shared/types/budget";
+
 import { initializeDatabase } from "./db";
 import { DEFAULT_PARAMETRES } from "./schema";
 
 export type StatutMois = "en_cours" | "cloture";
-export type EnveloppeType = "charges" | "epargne" | "investissement" | "urgence";
+export type { EnveloppeType } from "@/shared/types/budget";
 export type ParametreCle =
   | "pct_charges"
   | "pct_epargne"

@@ -1,6 +1,7 @@
 import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 
-import { DATABASE_NAME, DEFAULT_PARAMETRES, SCHEMA_QUERIES } from "./schema";
+import { runMigrations, syncLegacyDepenses } from "./migrations";
+import { DATABASE_NAME, DEFAULT_PARAMETRES } from "./schema";
 
 let databaseInstance: SQLiteDatabase | null = null;
 let initializationPromise: Promise<SQLiteDatabase> | null = null;
@@ -16,16 +17,6 @@ export async function getDatabase(): Promise<SQLiteDatabase> {
   });
 
   return databaseInstance;
-}
-
-/** Cree toutes les tables et indexes necessaires si la base est ouverte pour la premiere fois. */
-async function createSchema(db: SQLiteDatabase): Promise<void> {
-  await db.execAsync("PRAGMA foreign_keys = ON;");
-  await db.execAsync("PRAGMA journal_mode = WAL;");
-
-  for (const query of SCHEMA_QUERIES) {
-    await db.execAsync(query);
-  }
 }
 
 /** Insere les parametres par defaut uniquement s'ils n'existent pas deja. */
@@ -48,8 +39,13 @@ export async function initializeDatabase(): Promise<SQLiteDatabase> {
   initializationPromise = (async () => {
     const db = await getDatabase();
 
-    await createSchema(db);
+    // Les PRAGMA doivent etre poses hors transaction, donc avant les migrations.
+    await db.execAsync("PRAGMA foreign_keys = ON;");
+    await db.execAsync("PRAGMA journal_mode = WAL;");
+
+    await runMigrations(db);
     await seedDefaultParametres(db);
+    await syncLegacyDepenses(db);
 
     return db;
   })();
