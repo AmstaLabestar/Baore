@@ -7,7 +7,13 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:sms": "tsc scripts/check-sms-parsers.ts --outDir node_modules/.cache/sms-check --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --strict && node node_modules/.cache/sms-check/scripts/check-sms-parsers.js",
+    "check:db": "tsc scripts/check-migrations.ts --outDir node_modules/.cache/db-check --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --strict && node --experimental-sqlite node_modules/.cache/db-check/scripts/check-migrations.js",
+    "check": "npm run typecheck && npm run check:sms && npm run check:db && npm run check:ingest && npm run check:classify && npm run check:sync",
+    "check:ingest": "tsc scripts/check-ingestion.ts --outDir node_modules/.cache/ingest-check --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --strict && node --experimental-sqlite node_modules/.cache/ingest-check/scripts/check-ingestion.js",
+    "check:classify": "tsc scripts/check-classification.ts --outDir node_modules/.cache/classify-check --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --strict && node --experimental-sqlite node_modules/.cache/classify-check/scripts/check-classification.js",
+    "check:sync": "tsc scripts/check-sync.ts --outDir node_modules/.cache/sync-check --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --strict && node --experimental-sqlite node_modules/.cache/sync-check/scripts/check-sync.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

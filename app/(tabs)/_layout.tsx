@@ -6,7 +6,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { initializeDatabase } from "@/database/db";
 import { getEnveloppesByMois, getMoisEnCours, getParametresMap } from "@/database/queries";
+import { compterAClasser } from "@/modules/classification/infrastructure/classification-repository";
 import { buildBudgetAlerts, countActiveBudgetAlerts } from "@/services/budget-alerts";
 import { palette, radius, shadows } from "@/shared/theme";
 import { subscribeToBudgetUpdates } from "@/shared/services/budget-events";
@@ -53,6 +55,7 @@ function AddTabButton({
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const [homeAlertCount, setHomeAlertCount] = useState(0);
+  const [aClasserCount, setAClasserCount] = useState(0);
 
   const loadHomeAlertCount = useCallback(async () => {
     const currentMonth = await getMoisEnCours();
@@ -76,13 +79,23 @@ export default function TabsLayout() {
     setHomeAlertCount(countActiveBudgetAlerts(alerts));
   }, []);
 
+  const loadAClasserCount = useCallback(async () => {
+    try {
+      setAClasserCount(await compterAClasser(await initializeDatabase()));
+    } catch (error) {
+      console.error("Comptage de la file de classement impossible:", error);
+    }
+  }, []);
+
   useEffect(() => {
     void loadHomeAlertCount();
+    void loadAClasserCount();
 
     return subscribeToBudgetUpdates(() => {
       void loadHomeAlertCount();
+      void loadAClasserCount();
     });
-  }, [loadHomeAlertCount]);
+  }, [loadAClasserCount, loadHomeAlertCount]);
 
   return (
     <Tabs
@@ -113,6 +126,21 @@ export default function TabsLayout() {
             <Ionicons
               color={color}
               name={focused ? "home" : "home-outline"}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="classer"
+        options={{
+          title: "A classer",
+          tabBarBadge: aClasserCount > 0 ? aClasserCount : undefined,
+          tabBarBadgeStyle: styles.badge,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              color={color}
+              name={focused ? "pricetags" : "pricetags-outline"}
               size={size}
             />
           ),

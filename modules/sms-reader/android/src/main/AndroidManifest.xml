@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    READ_SMS  : rattrapage de l'historique a l'installation.
+    RECEIVE_SMS : mise a jour immediate quand l'application est ouverte.
+
+    Google Play autorise explicitement cet usage ("SMS-based money management"),
+    a condition qu'il soit la fonction principale de l'application et qu'il soit
+    mis en avant sur la fiche du Play Store.
+  -->
+  <uses-permission android:name="android.permission.READ_SMS" />
+  <uses-permission android:name="android.permission.RECEIVE_SMS" />
+</manifest>
